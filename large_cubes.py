@@ -389,6 +389,120 @@ def calculate_nchan(result):
 
     return nchan
 
+
+def calc_time_on_source(cal_info_file, include_cal=True,
+                        min_date=2019):
+    '''
+    Read in information about calibration sources and write out a file with total time on
+    -- bandpass
+    -- check source
+    -- phase calibrator
+    -- science target
+
+    Date        Programmer      Description of Code
+    -----------------------------------------------
+    11/23/2022  A.A.Kepley      Original Code
+    '''
+
+    t = Table.read(cal_info_file, format='ascii',delimiter='|',
+                   guess=False,
+                   names=('project_id','mous','band','asdm','intent','sum','na'))
+
+    # bogus extra column due to how things are delimited.
+    t.remove_column('na')
+
+    # get list of mous'es
+    mous_list = np.unique(t['mous'])
+
+    # set up output arrays
+    project_id_arr = np.array([])
+    mous_arr = np.array([])
+    bp_time_arr = np.array([])
+    flux_time_arr = np.array([])
+    phase_time_arr = np.array([])
+    check_time_arr = np.array([])
+    pol_time_arr = np.array([])
+    src_time_arr = np.array([])
+
+    # let's iterate over MOUS
+    for mous in mous_list:
+        idx = t['mous'] == mous
+        
+        # get project id and skip it if something is weird or it's too old
+        project_id = np.unique(t[idx]['project_id'])
+        if len(project_id) > 1:
+            print("project_id list greater than 1. This shouldn't happen. MOUS:", mous)
+            continue
+        else:
+            if float(project_id[0].split('.')[0]) < min_date:
+                #print("project_id less than minimum date")
+                continue
+
+        # now go through list of ASDMS     
+        asdm_list = np.unique(t[idx]['asdm'])
+
+        for asdm in asdm_list:
+            idx2 = (t['mous'] == mous) & (t['asdm'] == asdm)
+
+            ## need to skip those projects that aren't observing modes
+            ## we want to focus on. (DIFFGAIN,APPPHASE_ACTIVE BANDPASS AND PHASE project)
+            
+            bp_time = 0.0
+            flux_time = 0.0
+            phase_time = 0.0
+            pol_time = 0.0
+            check_time = 0.0
+            src_time = 0.9
+            for row in t[idx2]:
+                if row['intent'] == 'BANDPASS FLUX WVR':
+                    bp_time = row['sum']
+                elif row['intent'] == 'BANDPASS FLUX POLARIZATION WVR':
+                    bp_time = row['sum']
+                elif row['intent'] == 'BANDPASS WVR':
+                    bp_time = row['sum']
+                elif row['intent'] == 'FLUX WVR':
+                    flux_time = row['sum']
+                elif row['intent'] == 'PHASE WVR':
+                    phase_time = row['sum']
+                elif row['intent'] == 'POLARIZATION WVR':
+                    pol_time = row['sum']
+                elif row['intent'] == 'CHECK WVR':
+                    check_time = row['sum']
+                elif row['intent'] == 'TARGET':
+                    src_time = row['sum']
+                else:
+                    print("Intent not recognized: " + row['intent'])
+
+        # add values to array
+        project_id_arr = np.append(project_id_arr, project_id)
+        mous_arr = np.append(mous_arr, mous)
+        bp_time_arr = np.append(bp_time_arr, bp_time)
+        flux_time_arr = np.append(flux_time_arr, flux_time)
+        phase_time_arr = np.append(phase_time_arr, phase_time)
+        pol_time_arr = np.append(pol_time_arr,pol_time)
+        check_time_arr = np.append(check_time_arr, check_time)
+        src_time_arr = np.append(src_time_arr, src_time)
+        
+    # create final table
+    tout = Table(data=[project_id_arr,
+                       mous_arr,
+                       bp_time_arr,
+                       flux_time_arr,
+                       phase_time_arr,
+                       pol_time_arr,
+                       check_time_arr,
+                       src_time_arr],
+                 names=['project_id',
+                        'mous',
+                        'bp_time_s',
+                        'flux_time_s',
+                        'phase_time_s',
+                        'pol_time_s',
+                        'check_time_s',
+                        'src_time_s'])
+    return tout
+    
+    
 def calc_nchan_max_points_per_fov(cube_limit, points_per_fov, pixels_per_beam=25.0, nbin=1.0, chan_limit = 7680.0,frac_fov=1.0):
     '''
     calculate maximum number of channels permitted by cube mitigation limit.
