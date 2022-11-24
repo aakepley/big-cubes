@@ -251,7 +251,7 @@ def create_database(cycle7tab):
     # put together table
     if_mous_tab = QTable([if_mous_list, proposal_id_list, array_list, 
                           nant_typical_list, nant_array_list, nant_all_list, 
-                          band_list_array, ntarget_list, 
+                          band_list_array, ntarget_list, target_name_list,
                           s_fov_list, s_resolution_list, mosaic_list,
                           imsize_list, pb_list,cell_list,
                           npol_list,
@@ -264,7 +264,8 @@ def create_database(cycle7tab):
                           tint_list],
                          names=('mous','proposal_id','array',
                                 'nant_typical','nant_array','nant_all',
-                                'band','ntarget','s_fov','s_resolution','mosaic',
+                                'band','ntarget','target_name',
+                                's_fov','s_resolution','mosaic',
                                 'imsize','pb','cell',
                                 'npol',
                                 'velocity_resolution_current',
@@ -431,6 +432,8 @@ def create_database(cycle7tab):
     if_mous_tab['vis_rate_all_final_stepped'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_all'] * if_mous_tab['wsu_nchan_final_stepped']  /1e9) / (if_mous_tab['tint'].to('hr'))
     
     # fractional bandwidth
+    # ---------------------
+    
     if_mous_tab['frac_bw_initial'] = if_mous_tab['wsu_bandwidth_initial']/if_mous_tab['wsu_freq']
     if_mous_tab['frac_bw_final'] = if_mous_tab['wsu_bandwidth_final']/if_mous_tab['wsu_freq']
     

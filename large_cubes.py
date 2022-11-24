@@ -391,7 +391,7 @@ def calculate_nchan(result):
 
 
 def calc_time_on_source(cal_info_file, include_cal=True,
-                        min_date=2019):
+                        min_date=2019, debug=False):
     '''
     Read in information about calibration sources and write out a file with total time on
     -- bandpass
@@ -406,10 +406,11 @@ def calc_time_on_source(cal_info_file, include_cal=True,
 
     t = Table.read(cal_info_file, format='ascii',delimiter='|',
                    guess=False,
-                   names=('project_id','mous','band','asdm','intent','sum','na'))
+                   names=('project_id','mous','band','array','asdm','asdm_size_gb','na1','src_name','intent','tos_s','na2'))
 
     # bogus extra column due to how things are delimited.
-    t.remove_column('na')
+    t.remove_column('na1')
+    t.remove_column('na2')
 
     # get list of mous'es
     mous_list = np.unique(t['mous'])
@@ -417,89 +418,133 @@ def calc_time_on_source(cal_info_file, include_cal=True,
     # set up output arrays
     project_id_arr = np.array([])
     mous_arr = np.array([])
+    band_arr = np.array([])
+    array_arr = np.array([])
     bp_time_arr = np.array([])
     flux_time_arr = np.array([])
     phase_time_arr = np.array([])
     check_time_arr = np.array([])
     pol_time_arr = np.array([])
-    src_time_arr = np.array([])
-
+    n_src_arr = np.array([])
+    src_dict_arr = np.array([])
+    src_time_tot_arr = np.array([])
+    
     # let's iterate over MOUS
     for mous in mous_list:
-        idx = t['mous'] == mous
+        idx_mous = t['mous'] == mous
+
+        # skip TP
+        if ( t[idx_mous]['array'][0] == 'TP'):
+            if debug:
+                print("MOUS from TP array: skipping")
+            continue
+        else:
+            array = t[idx_mous]['array'][0] 
+
+        
+        project_id = ''
         
         # get project id and skip it if something is weird or it's too old
-        project_id = np.unique(t[idx]['project_id'])
+        project_id = np.unique(t[idx_mous]['project_id'])
         if len(project_id) > 1:
             print("project_id list greater than 1. This shouldn't happen. MOUS:", mous)
             continue
         else:
             if float(project_id[0].split('.')[0]) < min_date:
-                #print("project_id less than minimum date")
+                if debug:
+                    print("project_id less than minimum date")
                 continue
 
         # now go through list of ASDMS     
-        asdm_list = np.unique(t[idx]['asdm'])
+        asdm_list = np.unique(t[idx_mous]['asdm'])
 
         for asdm in asdm_list:
-            idx2 = (t['mous'] == mous) & (t['asdm'] == asdm)
+            idx_mous_asdm = (t['mous'] == mous) & (t['asdm'] == asdm)
 
-            ## need to skip those projects that aren't observing modes
-            ## we want to focus on. (DIFFGAIN,APPPHASE_ACTIVE BANDPASS AND PHASE project)
+            band = ''
             
             bp_time = 0.0
             flux_time = 0.0
             phase_time = 0.0
             pol_time = 0.0
             check_time = 0.0
-            src_time = 0.9
-            for row in t[idx2]:
+            src_dict = {}
+            src_time_tot = 0.0
+            time_tot = 0.0
+            n_src = 0.0
+          
+            # band
+            # TODO: Will this break with b2b?
+            band = t[idx_mous_asdm]['band'][0]
+
+            ## need to skip those projects that aren't observing modes
+            ## we want to focus on. (DIFFGAIN,APPPHASE_ACTIVE BANDPASS AND PHASE project)
+            
+            for row in t[idx_mous_asdm]:
                 if row['intent'] == 'BANDPASS FLUX WVR':
-                    bp_time = row['sum']
+                    bp_time += row['tos_s']
                 elif row['intent'] == 'BANDPASS FLUX POLARIZATION WVR':
-                    bp_time = row['sum']
+                    bp_time += row['tos_s']
                 elif row['intent'] == 'BANDPASS WVR':
-                    bp_time = row['sum']
+                    bp_time += row['tos_s']
                 elif row['intent'] == 'FLUX WVR':
-                    flux_time = row['sum']
+                    flux_time += row['tos_s']
                 elif row['intent'] == 'PHASE WVR':
-                    phase_time = row['sum']
+                    phase_time += row['tos_s']
                 elif row['intent'] == 'POLARIZATION WVR':
-                    pol_time = row['sum']
+                    pol_time += row['tos_s']
                 elif row['intent'] == 'CHECK WVR':
-                    check_time = row['sum']
+                    check_time += row['tos_s']
                 elif row['intent'] == 'TARGET':
-                    src_time = row['sum']
+                    src_time_tot += row['tos_s']
+                    src_dict[row['src_name']] = row['tos_s']
+                    
                 else:
                     print("Intent not recognized: " + row['intent'])
 
+            n_src = len(src_dict.keys())
+            time_tot = bp_time + flux_time + phase_time + pol_time + check_time + src_time_tot + time_tot
+
+                    
         # add values to array
         project_id_arr = np.append(project_id_arr, project_id)
         mous_arr = np.append(mous_arr, mous)
+        band_arr = np.append(band_arr, band)
+        array_arr = np.append(array_arr, array)
         bp_time_arr = np.append(bp_time_arr, bp_time)
         flux_time_arr = np.append(flux_time_arr, flux_time)
         phase_time_arr = np.append(phase_time_arr, phase_time)
         pol_time_arr = np.append(pol_time_arr,pol_time)
         check_time_arr = np.append(check_time_arr, check_time)
-        src_time_arr = np.append(src_time_arr, src_time)
+        src_dict_arr = np.append(src_dict_arr,src_dict)
+        src_time_tot_arr = np.append(src_time_tot_arr, src_time_tot)
+        n_src_arr = np.append(n_src_arr, n_src)
         
     # create final table
     tout = Table(data=[project_id_arr,
                        mous_arr,
+                       band_arr,
+                       array_arr,
                        bp_time_arr,
                        flux_time_arr,
                        phase_time_arr,
                        pol_time_arr,
                        check_time_arr,
-                       src_time_arr],
+                       src_dict_arr,
+                       src_time_tot_arr,
+                       n_src_arr],
                  names=['project_id',
                         'mous',
+                        'band',
+                        'array',
                         'bp_time_s',
                         'flux_time_s',
                         'phase_time_s',
                         'pol_time_s',
                         'check_time_s',
-                        'src_time_s'])
+                        'src_dict',
+                        'src_time_tot_s',
+                        'n_src'])
     return tout
     
     
