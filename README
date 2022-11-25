@@ -1,0 +1,17 @@
+Order for excecuting these files:
+
+Jupyter notebooks:
+* large_cube_Search_v2
+* WSU_size_of_computing_numbers_database
+* WSU_size_of_computing_numbers_UseCasePlots
+* WSU_size_of_computing_numbers_CrystalPlots
+
+
+Associated code:
+* large_cubes.py
+* wsu_db.py
+
+Associated data:
+* archive_query_results_*.csv -- results from archive query
+* result_table_*_with_calc_values* -- archive query with calculated values for nchan, imsize, and points_per_fov
+* cycle?_wsu_*.fits -- WSU estimates based on cycle n of ALMA
