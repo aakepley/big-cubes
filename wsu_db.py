@@ -1,4 +1,4 @@
-from astropy.table import Table, QTable
+from astropy.table import Table, QTable, join
 import numpy as np
 import astropy.units as u
 from astropy import constants as const
@@ -69,6 +69,9 @@ def create_database(cycle7tab):
     cell_list = []
     vel_res_list = []
 
+    ## TODO: MAY WANT TO .EXTEND RATHER THAN NP.APPEND BELOW. MUCH FASTER PERFORMANCE.
+    ## NEED TO BE CAREFUL WITH STRINGS.
+
     # fill in values
     for mymous in mousList:
         idx_mous = cycle7tab['member_ous_uid'] == mymous
@@ -83,7 +86,6 @@ def create_database(cycle7tab):
         if len(array) > 1:
             print("more than one array found for " + mymous)
 
-        
         mytargets = np.unique(cycle7tab[idx_mous]['target_name'])
         ntarget = np.unique(cycle7tab[idx_mous]['ntarget'])
         
@@ -411,30 +413,168 @@ def create_database(cycle7tab):
     # calculate visibility rate (GVis/Hr)
     # -----------------------------------
 
-    
+    ## initial BW & typical number of antennas
     if_mous_tab['vis_rate_typical_initial_finest'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_typical'] * if_mous_tab['wsu_nchan_initial_finest']  / 1e9) / (if_mous_tab['tint'].to('hr'))
     if_mous_tab['vis_rate_typical_initial_stepped'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_typical'] * if_mous_tab['wsu_nchan_initial_stepped']  / 1e9) / (if_mous_tab['tint'].to('hr'))
+    if_mous_tab['vis_rate_typical_initial_stepped2'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_typical'] * if_mous_tab['wsu_nchan_initial_stepped2']  / 1e9) / (if_mous_tab['tint'].to('hr'))
+
+    
+    ## initial BW & all antennas in array
+    if_mous_tab['vis_rate_array_initial_finest'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_array'] * if_mous_tab['wsu_nchan_initial_finest']  / 1e9) / (if_mous_tab['tint'].to('hr'))
+    if_mous_tab['vis_rate_array_initial_stepped'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_array'] * if_mous_tab['wsu_nchan_initial_stepped']  / 1e9) / (if_mous_tab['tint'].to('hr'))
+    if_mous_tab['vis_rate_array_initial_stepped2'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_array'] * if_mous_tab['wsu_nchan_initial_stepped2']  / 1e9) / (if_mous_tab['tint'].to('hr'))
+
+    ## initial BW & all antennas together
+    if_mous_tab['vis_rate_all_initial_finest'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_all'] * if_mous_tab['wsu_nchan_initial_finest']  / 1e9) / (if_mous_tab['tint'].to('hr'))
+    if_mous_tab['vis_rate_all_initial_stepped'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_all'] * if_mous_tab['wsu_nchan_initial_stepped']  / 1e9) / (if_mous_tab['tint'].to('hr'))
+    if_mous_tab['vis_rate_all_initial_stepped2'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_all'] * if_mous_tab['wsu_nchan_initial_stepped2']  / 1e9) / (if_mous_tab['tint'].to('hr'))
+
+    ## final BW & typical number of antennas
     if_mous_tab['vis_rate_typical_final_finest'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_typical'] * if_mous_tab['wsu_nchan_final_finest']  /1e9) / (if_mous_tab['tint'].to('hr'))
     if_mous_tab['vis_rate_typical_final_stepped'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_typical'] * if_mous_tab['wsu_nchan_final_stepped']  /1e9) / (if_mous_tab['tint'].to('hr'))
     if_mous_tab['vis_rate_typical_final_stepped2'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_typical'] * if_mous_tab['wsu_nchan_final_stepped2']  /1e9) / (if_mous_tab['tint'].to('hr'))
-    
-      # calculate visibility rate (GVis/Hr)
-    if_mous_tab['vis_rate_array_initial_finest'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_array'] * if_mous_tab['wsu_nchan_initial_finest']  / 1e9) / (if_mous_tab['tint'].to('hr'))
-    if_mous_tab['vis_rate_array_initial_stepped'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_array'] * if_mous_tab['wsu_nchan_initial_stepped']  / 1e9) / (if_mous_tab['tint'].to('hr'))
+
+    # final BW & all antennas in array
     if_mous_tab['vis_rate_array_final_finest'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_array'] * if_mous_tab['wsu_nchan_final_finest']  /1e9) / (if_mous_tab['tint'].to('hr'))
     if_mous_tab['vis_rate_array_final_stepped'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_array'] * if_mous_tab['wsu_nchan_final_stepped']  /1e9) / (if_mous_tab['tint'].to('hr'))
     if_mous_tab['vis_rate_array_final_stepped2'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_array'] * if_mous_tab['wsu_nchan_final_stepped2']  /1e9) / (if_mous_tab['tint'].to('hr'))
     
-        # calculate visibility rate (GVis/Hr)
-    if_mous_tab['vis_rate_all_initial_finest'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_all'] * if_mous_tab['wsu_nchan_initial_finest']  / 1e9) / (if_mous_tab['tint'].to('hr'))
-    if_mous_tab['vis_rate_all_initial_stepped'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_all'] * if_mous_tab['wsu_nchan_initial_stepped']  / 1e9) / (if_mous_tab['tint'].to('hr'))
+    ## final BW & all antennas together
     if_mous_tab['vis_rate_all_final_finest'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_all'] * if_mous_tab['wsu_nchan_final_finest']  /1e9) / (if_mous_tab['tint'].to('hr'))
     if_mous_tab['vis_rate_all_final_stepped'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_all'] * if_mous_tab['wsu_nchan_final_stepped']  /1e9) / (if_mous_tab['tint'].to('hr'))
+    if_mous_tab['vis_rate_all_final_stepped2'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_all'] * if_mous_tab['wsu_nchan_final_stepped2']  /1e9) / (if_mous_tab['tint'].to('hr'))
+
+
+    ## per SPW & typical number of antennas
+    if_mous_tab['vis_rate_typical_final_finest'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_typical'] * if_mous_tab['wsu_nchan_spw_finest']  /1e9) / (if_mous_tab['tint'].to('hr'))
+    if_mous_tab['vis_rate_typical_final_stepped'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_typical'] * if_mous_tab['wsu_nchan_spw_stepped']  /1e9) / (if_mous_tab['tint'].to('hr'))
+    if_mous_tab['vis_rate_typical_final_stepped2'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_typical'] * if_mous_tab['wsu_nchan_spw_stepped2']  /1e9) / (if_mous_tab['tint'].to('hr'))
+    
+    ## per SPW & all antennas in array
+    if_mous_tab['vis_rate_array_final_finest'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_array'] * if_mous_tab['wsu_nchan_spw_finest']  /1e9) / (if_mous_tab['tint'].to('hr'))
+    if_mous_tab['vis_rate_array_final_stepped'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_array'] * if_mous_tab['wsu_nchan_spw_stepped']  /1e9) / (if_mous_tab['tint'].to('hr'))
+    if_mous_tab['vis_rate_array_final_stepped2'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_array'] * if_mous_tab['wsu_nchan_spw_stepped2']  /1e9) / (if_mous_tab['tint'].to('hr'))
+
+    ## per spw & all antennas together
+    if_mous_tab['vis_rate_all_final_finest'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_all'] * if_mous_tab['wsu_nchan_spw_finest']  /1e9) / (if_mous_tab['tint'].to('hr'))
+    if_mous_tab['vis_rate_all_final_stepped'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_all'] * if_mous_tab['wsu_nchan_spw_stepped']  /1e9) / (if_mous_tab['tint'].to('hr'))
+    if_mous_tab['vis_rate_all_final_stepped2'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_all'] * if_mous_tab['wsu_nchan_spw_stepped2']  /1e9) / (if_mous_tab['tint'].to('hr'))
     
     # fractional bandwidth
     # ---------------------
     
     if_mous_tab['frac_bw_initial'] = if_mous_tab['wsu_bandwidth_initial']/if_mous_tab['wsu_freq']
     if_mous_tab['frac_bw_final'] = if_mous_tab['wsu_bandwidth_final']/if_mous_tab['wsu_freq']
-    
+    if_mous_tab['frac_bw_spw'] = if_mous_tab['wsu_bandwidth_spw']/if_mous_tab['wsu_freq']
+
     return if_mous_tab
+
+
+def add_tos_to_db(orig_db, tos_db):
+    '''
+    Purpose: Add time on source for sources and calibrators to data base. Needed
+    for size of compute estimate.
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    11/25/2022  A.A. Kepley     Original Code
+    '''
+
+    new_db = join(orig_db,tos_db,keys=['mous','target_name'], join_type='left')
+    new_db_grouped = new_db.group_by('mous')
+    
+    return new_db_grouped
+
+def calc_wsu_cal_tos():
+    '''
+    Purpose: Adjust calibrator TOS for the WSU
+
+    Things to thing about:
+    -- no changes -- just scale TOS by relevant factors (what are these)
+    -- modest changes
+             -- phase calibrator -- bigger changes (~1km/s)
+             -- bandpass calibrator -- Do we need to do the full resolution here or can we average?
+             -- check source -- ??
+             -- polarization -- ??
+
+
+    Need to review what's in the proposer's guide here to see what they are using now
+    to see what might make sense initially.
+    
+    '''
+
+    pass
+
+def calc_nvis(mydb):
+    '''
+    Purpose: calculate number of visibilities produced for the observations.
+
+    For now, just do for the 
+    
+    Date        Progammer       Description of Changes
+    --------------------------------------------------
+    11/25/2022  A.A. Kepley     Original Code
+    '''
+
+    ## target only
+    ## ------------
+
+    # This is what gets us what we need for the compute estimate. I think the spw version is probably
+    
+    
+    # typical array & initial BW
+    mydb['nvis_typical_initial_finest_target'] = mydb['vis_rate_typical_inital_finest'] * (mydb['target_time']/3600.0)
+    mydb['nvis_typical_initial_stepped_target'] = mydb['vis_rate_typical_inital_stepped'] * (mydb['target_time']/3600.0)
+    mydb['nvis_typical_initial_stepped2_target'] = mydb['vis_rate_typical_inital_stepped2'] * (mydb['target_time']/3600.0)
+
+    # typical array & final BW
+    mydb['nvis_typical_final_finest_target'] = mydb['vis_rate_typical_final_finest'] * (mydb['target_time']/3600.0)
+    mydb['nvis_typical_final_stepped_target'] = mydb['vis_rate_typical_final_stepped'] * (mydb['target_time']/3600.0)
+    mydb['nvis_typical_final_stepped2_target'] = mydb['vis_rate_typical_final_stepped2'] * (mydb['target_time']/3600.0)
+
+    # typical array & spw
+    mydb['nvis_typical_spw_finest_target'] = mydb['vis_rate_typical_spw_finest'] * (mydb['target_time']/3600.0)
+    mydb['nvis_typical_spw_stepped_target'] = mydb['vis_rate_typical_spw_stepped'] * (mydb['target_time']/3600.0)
+    mydb['nvis_typical_spw_stepped2_target'] = mydb['vis_rate_typical_spw_stepped2'] * (mydb['target_time']/3600.0)
+
+    # whole array & initial BW
+    mydb['nvis_array_initial_finest_target'] = mydb['vis_rate_array_inital_finest'] * (mydb['target_time']/3600.0)
+    mydb['nvis_array_initial_stepped_target'] = mydb['vis_rate_array_inital_stepped'] * (mydb['target_time']/3600.0)
+    mydb['nvis_array_initial_stepped2_target'] = mydb['vis_rate_array_inital_stepped2'] * (mydb['target_time']/3600.0)
+
+    # whole array & final BW
+    mydb['nvis_array_final_finest_target'] = mydb['vis_rate_array_final_finest'] * (mydb['target_time']/3600.0)
+    mydb['nvis_array_final_stepped_target'] = mydb['vis_rate_array_final_stepped'] * (mydb['target_time']/3600.0)
+    mydb['nvis_array_final_stepped2_target'] = mydb['vis_rate_array_final_stepped2'] * (mydb['target_time']/3600.0)
+
+    # whole array & spw 
+    mydb['nvis_array_spw_finest_target'] = mydb['vis_rate_array_spw_finest'] * (mydb['target_time']/3600.0)
+    mydb['nvis_array_spw_stepped_target'] = mydb['vis_rate_array_spw_stepped'] * (mydb['target_time']/3600.0)
+    mydb['nvis_array_spw_stepped2_target'] = mydb['vis_rate_array_spw_stepped2'] * (mydb['target_time']/3600.0)
+
+    # all antennas & initial BW
+    mydb['nvis_all_initial_finest_target'] = mydb['vis_rate_all_inital_finest'] * (mydb['target_time']/3600.0)
+    mydb['nvis_all_initial_stepped_target'] = mydb['vis_rate_all_inital_stepped'] * (mydb['target_time']/3600.0)
+    mydb['nvis_all_initial_stepped2_target'] = mydb['vis_rate_all_inital_stepped2'] * (mydb['target_time']/3600.0)
+
+    # all antennas & final BW
+    mydb['nvis_all_final_finest_target'] = mydb['vis_rate_all_final_finest'] * (mydb['target_time']/3600.0)
+    mydb['nvis_all_final_stepped_target'] = mydb['vis_rate_all_final_stepped'] * (mydb['target_time']/3600.0)
+    mydb['nvis_all_final_stepped2_target'] = mydb['vis_rate_all_final_stepped2'] * (mydb['target_time']/3600.0)
+
+    # all antennas & spw
+    mydb['nvis_all_spw_finest_target'] = mydb['vis_rate_all_spw_finest'] * (mydb['target_time']/3600.0)
+    mydb['nvis_all_spw_stepped_target'] = mydb['vis_rate_all_spw_stepped'] * (mydb['target_time']/3600.0)
+    mydb['nvis_all_spw_stepped2_target'] = mydb['vis_rate_all_spw_stepped2'] * (mydb['target_time']/3600.0)
+
+    ## calibrators
+    ## -----------
+
+    ## TODO
+    
+    return mydb
+    
+    pass
+
+
+

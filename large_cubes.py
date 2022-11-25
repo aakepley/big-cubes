@@ -390,7 +390,7 @@ def calculate_nchan(result):
     return nchan
 
 
-def calc_time_on_source(cal_info_file, include_cal=True,
+def calc_time_on_source(cal_info_file,
                         min_date=2019, debug=False):
     '''
     Read in information about calibration sources and write out a file with total time on
@@ -406,7 +406,7 @@ def calc_time_on_source(cal_info_file, include_cal=True,
 
     t = Table.read(cal_info_file, format='ascii',delimiter='|',
                    guess=False,
-                   names=('project_id','mous','band','array','asdm','asdm_size_gb','na1','src_name','intent','tos_s','na2'))
+                   names=('project_id','mous','band','array','asdm','asdm_size_gb','na1','target_name','intent','tos_s','na2'))
 
     # bogus extra column due to how things are delimited.
     t.remove_column('na1')
@@ -416,18 +416,19 @@ def calc_time_on_source(cal_info_file, include_cal=True,
     mous_list = np.unique(t['mous'])
 
     # set up output arrays
-    project_id_arr = np.array([])
-    mous_arr = np.array([])
-    band_arr = np.array([])
-    array_arr = np.array([])
-    bp_time_arr = np.array([])
-    flux_time_arr = np.array([])
-    phase_time_arr = np.array([])
-    check_time_arr = np.array([])
-    pol_time_arr = np.array([])
-    n_src_arr = np.array([])
-    src_dict_arr = np.array([])
-    src_time_tot_arr = np.array([])
+    project_id_arr = []
+    mous_arr = []
+    band_arr = []
+    array_arr = []
+    bp_time_arr = []
+    flux_time_arr = []
+    phase_time_arr = []
+    check_time_arr = []
+    pol_time_arr = []
+    ntarget_arr = []
+    target_name_arr = []
+    target_time_arr = []
+    target_time_tot_arr = []
     
     # let's iterate over MOUS
     for mous in mous_list:
@@ -440,9 +441,6 @@ def calc_time_on_source(cal_info_file, include_cal=True,
             continue
         else:
             array = t[idx_mous]['array'][0] 
-
-        
-        project_id = ''
         
         # get project id and skip it if something is weird or it's too old
         project_id = np.unique(t[idx_mous]['project_id'])
@@ -454,32 +452,36 @@ def calc_time_on_source(cal_info_file, include_cal=True,
                 if debug:
                     print("project_id less than minimum date")
                 continue
+        project_id = project_id[0]
 
+        # band
+        # TODO: Will this break with b2b? YES. SKIPPING B2B FOR NOW  
+        try:
+            band = float(t[idx_mous]['band'][0])
+        except:
+            continue
+            
+        # TODO:
+        ## need to skip those projects that aren't observing modes
+        ## we want to focus on. (DIFFGAIN,APPPHASE_ACTIVE BANDPASS AND PHASE project)
+            
         # now go through list of ASDMS     
         asdm_list = np.unique(t[idx_mous]['asdm'])
 
+        # initialize values
+        bp_time = 0.0
+        flux_time = 0.0
+        phase_time = 0.0
+        pol_time = 0.0
+        check_time = 0.0
+        target_dict = {}
+        target_time_tot = 0.0
+        time_tot = 0.0
+        n_src = 0.0
+        
         for asdm in asdm_list:
             idx_mous_asdm = (t['mous'] == mous) & (t['asdm'] == asdm)
-
-            band = ''
-            
-            bp_time = 0.0
-            flux_time = 0.0
-            phase_time = 0.0
-            pol_time = 0.0
-            check_time = 0.0
-            src_dict = {}
-            src_time_tot = 0.0
-            time_tot = 0.0
-            n_src = 0.0
-          
-            # band
-            # TODO: Will this break with b2b?
-            band = t[idx_mous_asdm]['band'][0]
-
-            ## need to skip those projects that aren't observing modes
-            ## we want to focus on. (DIFFGAIN,APPPHASE_ACTIVE BANDPASS AND PHASE project)
-            
+                      
             for row in t[idx_mous_asdm]:
                 if row['intent'] == 'BANDPASS FLUX WVR':
                     bp_time += row['tos_s']
@@ -496,29 +498,43 @@ def calc_time_on_source(cal_info_file, include_cal=True,
                 elif row['intent'] == 'CHECK WVR':
                     check_time += row['tos_s']
                 elif row['intent'] == 'TARGET':
-                    src_time_tot += row['tos_s']
-                    src_dict[row['src_name']] = row['tos_s']
-                    
+                    target_time_tot += row['tos_s']
+
+                    # add to time on target if source already observed
+                    if row['target_name'] in target_dict.keys():
+                        target_dict[row['target_name']] += row['tos_s']
+                    # add source to dictionary
+                    else:
+                        target_dict[row['target_name']] = row['tos_s']
                 else:
                     print("Intent not recognized: " + row['intent'])
 
-            n_src = len(src_dict.keys())
-            time_tot = bp_time + flux_time + phase_time + pol_time + check_time + src_time_tot + time_tot
+        # calculate total time and number of target sources
+        time_tot = bp_time + flux_time + phase_time + pol_time + check_time + target_time_tot 
+        n_src = len(target_dict)
 
-                    
+        #ipdb.set_trace()
+
+        ## TODO: ADD NEBS?
+        
         # add values to array
-        project_id_arr = np.append(project_id_arr, project_id)
-        mous_arr = np.append(mous_arr, mous)
-        band_arr = np.append(band_arr, band)
-        array_arr = np.append(array_arr, array)
-        bp_time_arr = np.append(bp_time_arr, bp_time)
-        flux_time_arr = np.append(flux_time_arr, flux_time)
-        phase_time_arr = np.append(phase_time_arr, phase_time)
-        pol_time_arr = np.append(pol_time_arr,pol_time)
-        check_time_arr = np.append(check_time_arr, check_time)
-        src_dict_arr = np.append(src_dict_arr,src_dict)
-        src_time_tot_arr = np.append(src_time_tot_arr, src_time_tot)
-        n_src_arr = np.append(n_src_arr, n_src)
+        project_id_arr.extend([project_id] * n_src)
+        mous_arr.extend([mous] * n_src)
+        band_arr.extend([band] * n_src)
+        array_arr.extend([array] * n_src)
+        bp_time_arr.extend([bp_time] * n_src)
+        flux_time_arr.extend([flux_time] * n_src)
+        phase_time_arr.extend([phase_time] * n_src)
+        pol_time_arr.extend([pol_time]*n_src)
+        check_time_arr.extend([check_time] * n_src)
+        target_time_arr.extend(target_dict.values()) # no repeat needed b/c have all sources
+        target_name_arr.extend(target_dict.keys()) # no repeat needed b/c have all sources
+        target_time_tot_arr.extend([target_time_tot]*n_src)        
+        ntarget_arr.extend([n_src]*n_src)
+
+        #ipdb.set_trace()
+
+    print('made it to table creation')
         
     # create final table
     tout = Table(data=[project_id_arr,
@@ -530,10 +546,12 @@ def calc_time_on_source(cal_info_file, include_cal=True,
                        phase_time_arr,
                        pol_time_arr,
                        check_time_arr,
-                       src_dict_arr,
-                       src_time_tot_arr,
-                       n_src_arr],
-                 names=['project_id',
+                       #src_dict_arr,
+                       target_time_arr,
+                       target_name_arr,
+                       target_time_tot_arr,
+                       np.array(ntarget_arr,dtype=np.float)],
+                 names=['proposal_id',
                         'mous',
                         'band',
                         'array',
@@ -542,9 +560,12 @@ def calc_time_on_source(cal_info_file, include_cal=True,
                         'phase_time_s',
                         'pol_time_s',
                         'check_time_s',
-                        'src_dict',
-                        'src_time_tot_s',
-                        'n_src'])
+                        #'src_dict',
+                        'target_time_s',
+                        'target_name',
+                        'target_time_tot_s',
+                        'ntarget'])
+    
     return tout
     
     
