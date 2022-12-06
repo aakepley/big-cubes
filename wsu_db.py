@@ -480,7 +480,7 @@ def add_tos_to_db(orig_db, tos_db):
     11/25/2022  A.A. Kepley     Original Code
     '''
 
-    new_db = join(orig_db,tos_db,keys=['mous','target_name'], join_type='left')
+    new_db = join(orig_db,tos_db,keys=['mous','target_name','proposal_id','array','band','ntarget'], join_type='left')
     new_db_grouped = new_db.group_by('mous')
     
     return new_db_grouped
