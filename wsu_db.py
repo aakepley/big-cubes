@@ -32,8 +32,12 @@ def calc_talon_specwidth(specwidth):
 def create_database(cycle7tab):
     '''
     
-    create database of cycle7 parameters for WSU size of computing estimate
-    
+    Purpose: create database of cycle7 parameters for WSU size of computing estimate
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    7/2022?     A.A. Kepley     Original Code
+    1/4/2023    A.A. Kepley     Updating with latest WSU terminology and additional BLC info
     '''
     
     # get MOUS list
@@ -42,6 +46,8 @@ def create_database(cycle7tab):
     # setup variables to hold values.
     #-----------------
 
+    ## NOTE TO SELF: dictionary probably would have been better strategy here.
+    
     # overall info
     if_mous_list = []
     proposal_id_list = []
@@ -73,12 +79,14 @@ def create_database(cycle7tab):
 
     # WSU info
     wsu_npol_list = []
-    wsu_bandwidth_final = []
-    wsu_bandwidth_initial = []
+    wsu_bandwidth_later_2x = []
+    wsu_bandwidth_later_4x = []
+    wsu_bandwidth_early = []
     wsu_bandwidth_spw = []
 
-    wsu_nspw_initial = []
-    wsu_nspw_final = []
+    wsu_nspw_early = []
+    wsu_nspw_later_2x = []
+    wsu_nspw_later_4x = []
 
     wsu_tint_list = [] 
     wsu_freq_list = []
@@ -125,24 +133,19 @@ def create_database(cycle7tab):
             idx = (cycle7tab['member_ous_uid'] == mymous) & (cycle7tab['target_name'] == target_name)
 
             # MOUS
-            #if_mous_list = np.append(if_mous_list,mymous)
             if_mous_list.append(mymous)
             
             # targetname
-            #target_name_list = np.append(target_name_list,target_name)
             target_name_list.append(target_name)
             
             # n targets
-            #ntarget_list = np.append(ntarget_list,ntarget)
             ntarget_list.append(ntarget)
             
             # proposal id 
             proposal_id = np.unique(cycle7tab[idx]['proposal_id'])
-            #proposal_id_list = np.append(proposal_id_list,proposal_id)
             proposal_id_list.append(proposal_id)
             
             # array info
-            #array_list = np.append(array_list,array)
             array_list.append(array)
             
             if array == '12m':
@@ -155,10 +158,6 @@ def create_database(cycle7tab):
                 nant_array = 12
                 nant_all = 16 # total power plus 7m
                 tint = 10.08 #s
-            #nant_typical_list = np.append(nant_typical_list,nant_typical)
-            #nant_array_list = np.append(nant_array_list,nant_array)
-            #nant_all_list = np.append(nant_all_list, nant_all)
-            #tint_list = np.append(tint_list,tint)
 
             nant_typical_list.append(nant_typical)
             nant_array_list.append(nant_array)
@@ -167,13 +166,11 @@ def create_database(cycle7tab):
             
             # FOV
             s_fov = np.mean(cycle7tab[idx]['s_fov']) 
-            #s_fov_list = np.append(s_fov_list,s_fov)
             s_fov_list.append(s_fov)
             
             
             # Resolution
             s_resolution = np.mean(cycle7tab[idx]['s_resolution'])
-            #s_resolution_list = np.append(s_resolution_list, s_resolution)
             s_resolution_list.append(s_resolution)
             
             # mosaic
@@ -181,27 +178,20 @@ def create_database(cycle7tab):
             if len(mosaic) > 1:
                 print("mosaic and single pointings in same MOUS " + mymous + ". Setting mosaic to True")
                 mosaic = 'T'
-            #mosaic_list = np.append(mosaic_list,mosaic)
             mosaic_list.append(mosaic)
             
             # imsize
             imsize = np.mean(cycle7tab[idx]['imsize'])
-            #imsize_list = np.append(imsize_list,imsize)
             imsize_list.append(imsize)
             
             # pb
             pb = np.mean(cycle7tab[idx]['pb'])
-            #pb_list = np.append(pb_list,pb)
             pb_list.append(pb)
             
             # cell
             cell = np.mean(cycle7tab[idx]['cell'])
-            #cell_list = np.append(cell_list,cell)
             cell_list.append(cell)
             
-            
-          
-
             # BLC info
             # ---------
 
@@ -210,7 +200,6 @@ def create_database(cycle7tab):
             if len(pol_states) > 1:
                 print("print multiple polarization setups in same MOUS " + mymous)
             npol = len(pol_states.data[0].split('/')[1:-1])
-            #npol_list = np.append(npol_list,npol)
             npol_list.append(npol)
             
             specwidth_finest = min(cycle7tab[idx]['spw_specwidth']) #kHz
@@ -249,8 +238,11 @@ def create_database(cycle7tab):
             # ----------------
 
             # assuming all single pol will switch to dual pol
+            ## TODO -- check this assumption with Crystal.
             if npol == 1:
                 wsu_npol = 2
+            else:
+                wsu_npol = npol
             wsu_npol_list.append(wsu_npol)
 
             
@@ -263,9 +255,7 @@ def create_database(cycle7tab):
             
             ## finest
             (specwidth_finest_talon, chanavg_finest_talon) = calc_talon_specwidth(specwidth_finest)
-            #wsu_specwidth_finest = np.append(wsu_specwidth_finest, specwidth_finest_talon )
             wsu_specwidth_finest.append(specwidth_finest_talon)
-            #wsu_chanavg_finest = np.append(wsu_chanavg_finest, chanavg_finest_talon)
             wsu_chanavg_finest.append(chanavg_finest_talon)
         
             velres_finest_tmp = (specwidth_finest_talon*1e3/(freq*1e9)) * const.c.to('km/s').value
@@ -284,9 +274,7 @@ def create_database(cycle7tab):
                
             specwidth_tmp = (vel_res_tmp / const.c.to('km/s').value) * np.mean(cycle7tab[idx]['spw_freq']*1e9)/1e3 #kHz
             (specwidth_stepped_talon,chanavg_stepped_talon) = calc_talon_specwidth(specwidth_tmp)
-            #wsu_specwidth_stepped = np.append(wsu_specwidth_stepped,specwidth_stepped_talon)
             wsu_specwidth_stepped.append(specwidth_stepped_talon)
-            #wsu_chanavg_stepped = np.append(wsu_chanavg_stepped, chanavg_stepped_talon)
             wsu_chanavg_stepped.append(chanavg_stepped_talon)
 
             velres_stepped_tmp = (specwidth_stepped_talon*1e3/(freq*1e9)) * const.c.to('km/s').value
@@ -309,9 +297,7 @@ def create_database(cycle7tab):
                 
             specwidth_tmp = (vel_res_tmp / const.c.to('km/s').value) * np.mean(cycle7tab[idx]['spw_freq']*1e9)/1e3 #kHz
             (specwidth_stepped2_talon,chanavg_stepped2_talon) = calc_talon_specwidth(specwidth_tmp)
-            #wsu_specwidth_stepped2 = np.append(wsu_specwidth_stepped2,specwidth_stepped2_talon)
             wsu_specwidth_stepped2.append(specwidth_stepped2_talon)
-            #wsu_chanavg_stepped2 = np.append(wsu_chanavg_stepped2, chanavg_stepped2_talon)
             wsu_chanavg_stepped2.append(chanavg_stepped2_talon) 
 
             velres_stepped2_tmp = (specwidth_stepped2_talon * 1e3 / (freq*1e9)) * const.c.to('km/s').value
@@ -320,45 +306,45 @@ def create_database(cycle7tab):
             # WSU BW
             # ------------
 
-            # each spw likely to have 1.6GHz BW
-            #wsu_bandwidth_spw = np.append(wsu_bandwidth_spw,1.6) 
-            wsu_bandwidth_spw.append(1.6)
-            
-            # everything will have 16GHz eventually and 10 spws
-
-            #wsu_bandwidth_final = np.append(wsu_bandwidth_final, 16.0)
-            wsu_bandwidth_final.append(16.0)
-            wsu_nspw_final.append(10)
-
-            # but at beginning only band 6 and band 2 will be upgraded. Band 2 is under dev now, so no band 2 in cycle 7.
+            # get band information
             band_list = np.unique(cycle7tab[idx]['band_list'])
             if len(band_list) > 1:
                 print("multiple bands in same MOUS " + mymous)
-            #band_list_array = np.append(band_list_array, band_list)
             band_list_array.append(band_list) ## is append going to cause problems here
             
+            # each spw likely to have 1.6GHz BW -- based on 1st F at antenna
+            spw_bw = 1.6 # GHz 
+            wsu_bandwidth_spw.append(spw_bw)
+
+            # but at beginning only band 6 and band 2 will be upgraded. Band 2 is under dev now, so no band 2 in cycle 7.
             if band_list == 6:
-                #wsu_bandwidth_initial = np.append(wsu_bandwidth_initial, 16.0)
-                wsu_bandwidth_initial.append(16.0)
-                wsu_nspw_initial.append(10)
+                bw = 16.0
             elif (band_list >= 3) & (band_list <= 8) & (band_list != 6):
-                #wsu_bandwidth_initial = np.append(wsu_bandwidth_initial, 8.0)
-                wsu_bandwidth_initial.append(8.0)
-                wsu_nspw_initial.append(5)
+                bw = 8.0
             elif (band_list >= 9 & band_list <= 10):
-                #wsu_bandwidth_initial = np.append(wsu_bandwidth_initial, 16.0)
-                wsu_bandwidth_initial.append(16.0)
-                wsu_nspw_initial.append(10)
+                bw = 16.0
             else:
                 print('Band not recognized for MOUS: ' + mymous)
-
-
+                
+            wsu_bandwidth_early.append(bw)
+            wsu_nspw_early.append(round(bw/spw_bw))
             
+            # 2x BW
+            bw = 16.0 # GHz
+            wsu_bandwidth_later_2x.append(bw)
+            wsu_nspw_later_2x.append(round(bw/spw_bw))
+
+            # 4x BW -- assumes band 1 won't be upgraded to 4x.
+            if band_list == 1:
+                bw = 16.0 # GHz
+            else:
+                bw = 32.0 # GHz
+            wsu_bandwidth_later_4x.append(bw)
+            wsu_nspw_later_4x.append(round(bw/spw_bw))                
  
     # put appropriate units on quantities.
     s_fov_list = np.array(s_fov_list) * u.deg
     s_resolution_list = np.array(s_resolution_list) * u.arcsec
-
 
     blc_specwidth = np.array(blc_specwidth) * u.kHz
     blc_freq = np.array(blc_freq) * u.GHz
@@ -369,8 +355,9 @@ def create_database(cycle7tab):
     blc_bw_agg = np.array(blc_bw_agg) * u.GHz
     blc_nspw = np.array(blc_nspw)
     
-    wsu_bandwidth_initial = np.array(wsu_bandwidth_initial) * u.GHz
-    wsu_bandwidth_final = np.array(wsu_bandwidth_final) * u.GHz
+    wsu_bandwidth_early = np.array(wsu_bandwidth_early) * u.GHz
+    wsu_bandwidth_later_2x = np.array(wsu_bandwidth_later_2x) * u.GHz
+    wsu_bandwidth_later_4x = np.array(wsu_bandwidth_later_4x) * u.GHz
     wsu_bandwidth_spw = np.array(wsu_bandwidth_spw) * u.GHz
 
     wsu_specwidth_finest = np.array(wsu_specwidth_finest) * u.kHz
@@ -396,8 +383,8 @@ def create_database(cycle7tab):
                           np.squeeze(blc_specwidth),np.squeeze(blc_freq), np.squeeze(blc_vel_res),
                           np.squeeze(blc_nchan_agg),np.squeeze(blc_nchan_max),np.squeeze(blc_bw_max),np.squeeze(blc_bw_agg),
                           np.squeeze(wsu_freq_list),np.squeeze(wsu_npol_list),
-                          np.squeeze(wsu_bandwidth_initial), np.squeeze(wsu_bandwidth_final), np.squeeze(wsu_bandwidth_spw),
-                          np.squeeze(wsu_nspw_initial), np.squeeze(wsu_nspw_final),
+                          np.squeeze(wsu_bandwidth_early), np.squeeze(wsu_bandwidth_later_2x), np.squeeze(wsu_bandwidth_later_4x), np.squeeze(wsu_bandwidth_spw), 
+                          np.squeeze(wsu_nspw_early), np.squeeze(wsu_nspw_later_2x), np.squeeze(wsu_nspw_later_4x),
                           np.squeeze(wsu_specwidth_finest), np.squeeze(wsu_chanavg_finest), np.squeeze(wsu_velres_finest),
                           np.squeeze(wsu_specwidth_stepped), np.squeeze(wsu_chanavg_stepped), np.squeeze(wsu_velres_stepped),
                           np.squeeze(wsu_specwidth_stepped2), np.squeeze(wsu_chanavg_stepped2), np.squeeze(wsu_velres_stepped2),
@@ -408,13 +395,14 @@ def create_database(cycle7tab):
                                 's_fov','s_resolution','mosaic',
                                 'imsize','pb','cell',
                                 'blc_npol','blc_nspw',
-                                'blc_specwidth','blc_freq','blc_velres','blc_nchan_agg','blc_nchan_max','blc_bandwidth_max','blc_bandwidth_agg',
+                                'blc_specwidth','blc_freq','blc_velres',
+                                'blc_nchan_agg','blc_nchan_max','blc_bandwidth_max','blc_bandwidth_agg',
                                 'wsu_freq','wsu_npol',
-                                'wsu_bandwidth_initial','wsu_bandwidth_final','wsu_bandwidth_spw',
-                                'wsu_nspw_initial','wsu_nspw_final',
+                                'wsu_bandwidth_early','wsu_bandwidth_later_2x','wsu_bandwidth_later_4x','wsu_bandwidth_spw',
+                                'wsu_nspw_early','wsu_nspw_later_2x', 'wsu_nspw_later_4x',
                                 'wsu_specwidth_finest','wsu_chanavg_finest', 'wsu_velres_finest',
                                 'wsu_specwidth_stepped','wsu_chanavg_stepped', 'wsu_velres_stepped',
-                                'wsu_specwidth_stepped2','wsu_chanavg_stepped2','wsu_velres_stepped2',                                
+                                'wsu_specwidth_stepped2','wsu_chanavg_stepped2','wsu_velres_stepped2',                              
                                 'wsu_tint'))
     
     
@@ -456,41 +444,22 @@ def create_database(cycle7tab):
     # fractional bandwidth
     # ---------------------
     
-    if_mous_tab['frac_bw_initial'] = if_mous_tab['wsu_bandwidth_initial']/if_mous_tab['wsu_freq']
-    if_mous_tab['frac_bw_final'] = if_mous_tab['wsu_bandwidth_final']/if_mous_tab['wsu_freq']
-    if_mous_tab['frac_bw_spw'] = if_mous_tab['wsu_bandwidth_spw']/if_mous_tab['wsu_freq']
-
+    if_mous_tab['wsu_frac_bw_initial'] = if_mous_tab['wsu_bandwidth_early']/if_mous_tab['wsu_freq']
+    if_mous_tab['wsu_frac_bw_later_2x'] = if_mous_tab['wsu_bandwidth_later_2x']/if_mous_tab['wsu_freq']
+    if_mous_tab['wsu_frac_bw_later_4x'] = if_mous_tab['wsu_bandwidth_later_4x']/if_mous_tab['wsu_freq']
+    if_mous_tab['wsu_frac_bw_spw'] = if_mous_tab['wsu_bandwidth_spw']/if_mous_tab['wsu_freq']
     
-    ## TODO?
-    ## move the calculations below to another bit of code that explicitly calculates data rates, visibility rates, and total number of visibilities?
+
+    # calculate number of baselines for each case.
+    # --------------------------------------------    
+
+    for myarray in ['typical','array','all']:
+        if_mous_tab['nbase_'+myarray] = if_mous_tab['nant_'+myarray] * (if_mous_tab['nant_'+myarray] -1 )/2.0
+
+    ## TODO: I have a function to do this
+    ## calculate cube sizes and total data sizes??
+    
         
-
-    # # calculate number of baselines for each case.
-    # # --------------------------------------------    
-
-    # if_mous_tab['nbase_typical'] = if_mous_tab['nant_typical'] * (if_mous_tab['nant_typical'] -1 )/2.0
-    # if_mous_tab['nbase_array'] = if_mous_tab['nant_array'] * (if_mous_tab['nant_array'] -1 )/2.0
-    # if_mous_tab['nbase_all'] = if_mous_tab['nant_all'] * (if_mous_tab['nant_all'] - 1)/2.0
-
-    # # calculate visibility rate (GVis/Hr)
-    # # -----------------------------------
-    
-    # ## per SPW & typical number of antennas
-    # if_mous_tab['vis_rate_typical_final_finest'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_typical'] * if_mous_tab['wsu_nchan_spw_finest']  /1e9) / (if_mous_tab['tint'].to('hr'))
-    # if_mous_tab['vis_rate_typical_final_stepped'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_typical'] * if_mous_tab['wsu_nchan_spw_stepped']  /1e9) / (if_mous_tab['tint'].to('hr'))
-    # if_mous_tab['vis_rate_typical_final_stepped2'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_typical'] * if_mous_tab['wsu_nchan_spw_stepped2']  /1e9) / (if_mous_tab['tint'].to('hr'))
-    
-    # ## per SPW & all antennas in array
-    # if_mous_tab['vis_rate_array_final_finest'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_array'] * if_mous_tab['wsu_nchan_spw_finest']  /1e9) / (if_mous_tab['tint'].to('hr'))
-    # if_mous_tab['vis_rate_array_final_stepped'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_array'] * if_mous_tab['wsu_nchan_spw_stepped']  /1e9) / (if_mous_tab['tint'].to('hr'))
-    # if_mous_tab['vis_rate_array_final_stepped2'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_array'] * if_mous_tab['wsu_nchan_spw_stepped2']  /1e9) / (if_mous_tab['tint'].to('hr'))
-
-    # ## per spw & all antennas together
-    # if_mous_tab['vis_rate_all_final_finest'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_all'] * if_mous_tab['wsu_nchan_spw_finest']  /1e9) / (if_mous_tab['tint'].to('hr'))
-    # if_mous_tab['vis_rate_all_final_stepped'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_all'] * if_mous_tab['wsu_nchan_spw_stepped']  /1e9) / (if_mous_tab['tint'].to('hr'))
-    # if_mous_tab['vis_rate_all_final_stepped2'] = (2.0 * if_mous_tab['npol'] * if_mous_tab['nbase_all'] * if_mous_tab['wsu_nchan_spw_stepped2']  /1e9) / (if_mous_tab['tint'].to('hr'))
-    
-
     return if_mous_tab
 
 
@@ -529,76 +498,140 @@ def calc_wsu_cal_tos():
 
     pass
 
-def calc_nvis(mydb):
+def add_rates_to_db(mydb):
     '''
-    Purpose: calculate number of visibilities produced for the observations.
+    Purpose: Add data rates and associated quantities to data base
 
-    For now, just do for the 
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    1/4/2023    A.A. Kepley     Original Code
+    '''
+
+    from large_cubes import calc_mfs_size, calc_cube_size
+
+    # calculate mfs size
+    # This will not change with WSU
+    mydb['mfssize'] = calc_mfs_size(mydb['imsize'])
+
+    # calculate cube sizes, data rates, and data volumes.
+    for array in ['typical','array','all']:
+        for velres in ['finest','stepped','stepped2']:
+
+            # calculate cube sizes
+            # only depends on number of channels per spw
+            mydb['wsu_cubesize_'+velres] = calc_cube_size(mydb['imsize'], mydb['wsu_nchan_spw_'+velres])
+
+            for stage in ['early','later_2x','later_4x']:
+
+                # calculate product size
+                # depends on number of cubes
+                mydb['productsize_wsu_'+stage+'_'+velres] = 2.0* (mydb['wsu_cubesize_'+velres] * mydb['wsu_nspw_'+stage] + mydb['mfssize'])
+
+                # calculate data rates and data volumes for the visibilities
+                mydb = calc_rates_for_db(mydb,array=array,correlator='wsu',stage=stage,velres=velres)
+                
+    return mydb
+
+    
+def calc_rates_for_db(mydb, array='typical',correlator='wsu',stage='early', velres='stepped2'):
+    '''
+    Purpose: calculate data rates for a specific case
     
     Date        Progammer       Description of Changes
-    --------------------------------------------------
-    11/25/2022  A.A. Kepley     Original Code
+    ----------------------------------------------------------------------
+    1/4/2023    A.A. Kepley     Original Code
+    
     '''
 
-    ## target only
-    ## ------------
+    Nbyte = 2.0 # cross-corrs
+    Napc = 1.0 # offline WVR correlators
+    Nant = mydb['nant_'+array]
 
-    # This is what gets us what we need for the compute estimate. I think the spw version is probably
+    if correlator == 'wsu':
+        Nspws = mydb[correlator+'_nspw_'+stage]
+        Nchan_per_spw = mydb[correlator+'_nchan_spw_'+velres]
+        Nchannels = Nspws * Nchan_per_spw
+    else:
+        Nchannels = mydb[correlator+'_nchan_agg']
+
+    Tintegration = mydb[correlator+'_tint']
+
+    Npols = mydb[correlator+'_npol']
     
+    mylabel = '_'+correlator+'_'+stage+'_'+velres+'_'+array
     
-    # typical array & initial BW
-    mydb['nvis_typical_initial_finest_target'] = mydb['vis_rate_typical_inital_finest'] * (mydb['target_time']/3600.0)
-    mydb['nvis_typical_initial_stepped_target'] = mydb['vis_rate_typical_inital_stepped'] * (mydb['target_time']/3600.0)
-    mydb['nvis_typical_initial_stepped2_target'] = mydb['vis_rate_typical_inital_stepped2'] * (mydb['target_time']/3600.0)
+    mydb['datarate'+mylabel] = calc_datarate(Nbyte, Napc, Nant, Nchannels, Npols, Tintegration) #GB/s
+    mydb['visrate'+mylabel] = calc_visrate(Nant, Npols, Nchannels, Tintegration) #Gvis/hr
 
-    # typical array & final BW
-    mydb['nvis_typical_final_finest_target'] = mydb['vis_rate_typical_final_finest'] * (mydb['target_time']/3600.0)
-    mydb['nvis_typical_final_stepped_target'] = mydb['vis_rate_typical_final_stepped'] * (mydb['target_time']/3600.0)
-    mydb['nvis_typical_final_stepped2_target'] = mydb['vis_rate_typical_final_stepped2'] * (mydb['target_time']/3600.0)
+    mydb['datavol'+mylabel+'_target'] = mydb['datarate'+mylabel] * mydb['target_time_s'] * u.s # GB/s * s = GB
+    mydb['datavol'+mylabel+'_cal'] = mydb['datarate'+mylabel] * mydb['cal_time_s'] * u.s # GB/s * s = GB
+    mydb['datavol'+mylabel+'_total'] = mydb['datarate'+mylabel] * mydb['time_tot_s'] * u.s # GB/s * s = GB
 
-    # typical array & spw
-    mydb['nvis_typical_spw_finest_target'] = mydb['vis_rate_typical_spw_finest'] * (mydb['target_time']/3600.0)
-    mydb['nvis_typical_spw_stepped_target'] = mydb['vis_rate_typical_spw_stepped'] * (mydb['target_time']/3600.0)
-    mydb['nvis_typical_spw_stepped2_target'] = mydb['vis_rate_typical_spw_stepped2'] * (mydb['target_time']/3600.0)
-
-    # whole array & initial BW
-    mydb['nvis_array_initial_finest_target'] = mydb['vis_rate_array_inital_finest'] * (mydb['target_time']/3600.0)
-    mydb['nvis_array_initial_stepped_target'] = mydb['vis_rate_array_inital_stepped'] * (mydb['target_time']/3600.0)
-    mydb['nvis_array_initial_stepped2_target'] = mydb['vis_rate_array_inital_stepped2'] * (mydb['target_time']/3600.0)
-
-    # whole array & final BW
-    mydb['nvis_array_final_finest_target'] = mydb['vis_rate_array_final_finest'] * (mydb['target_time']/3600.0)
-    mydb['nvis_array_final_stepped_target'] = mydb['vis_rate_array_final_stepped'] * (mydb['target_time']/3600.0)
-    mydb['nvis_array_final_stepped2_target'] = mydb['vis_rate_array_final_stepped2'] * (mydb['target_time']/3600.0)
-
-    # whole array & spw 
-    mydb['nvis_array_spw_finest_target'] = mydb['vis_rate_array_spw_finest'] * (mydb['target_time']/3600.0)
-    mydb['nvis_array_spw_stepped_target'] = mydb['vis_rate_array_spw_stepped'] * (mydb['target_time']/3600.0)
-    mydb['nvis_array_spw_stepped2_target'] = mydb['vis_rate_array_spw_stepped2'] * (mydb['target_time']/3600.0)
-
-    # all antennas & initial BW
-    mydb['nvis_all_initial_finest_target'] = mydb['vis_rate_all_inital_finest'] * (mydb['target_time']/3600.0)
-    mydb['nvis_all_initial_stepped_target'] = mydb['vis_rate_all_inital_stepped'] * (mydb['target_time']/3600.0)
-    mydb['nvis_all_initial_stepped2_target'] = mydb['vis_rate_all_inital_stepped2'] * (mydb['target_time']/3600.0)
-
-    # all antennas & final BW
-    mydb['nvis_all_final_finest_target'] = mydb['vis_rate_all_final_finest'] * (mydb['target_time']/3600.0)
-    mydb['nvis_all_final_stepped_target'] = mydb['vis_rate_all_final_stepped'] * (mydb['target_time']/3600.0)
-    mydb['nvis_all_final_stepped2_target'] = mydb['vis_rate_all_final_stepped2'] * (mydb['target_time']/3600.0)
-
-    # all antennas & spw
-    mydb['nvis_all_spw_finest_target'] = mydb['vis_rate_all_spw_finest'] * (mydb['target_time']/3600.0)
-    mydb['nvis_all_spw_stepped_target'] = mydb['vis_rate_all_spw_stepped'] * (mydb['target_time']/3600.0)
-    mydb['nvis_all_spw_stepped2_target'] = mydb['vis_rate_all_spw_stepped2'] * (mydb['target_time']/3600.0)
-
-    ## calibrators
-    ## -----------
-
-    ## TODO
+    mydb['nvis'+mylabel+'_target'] = mydb['visrate'+mylabel] * (mydb['target_time_s']/3600.0 * u.hr) # Gvis/hr * hr = Gvis
+    mydb['nvis'+mylabel+'_cal'] = mydb['visrate'+mylabel]  * (mydb['cal_time_s']/3600.0 * u.hr) # Gvis/hr * hr = Gvis
+    mydb['nvis'+mylabel+'_total'] = mydb['visrate'+mylabel] * (mydb['time_tot_s']/3600.0 * u.hr)# Gvis/hr * hr = Gvis
     
     return mydb
     
-    pass
+
+def calc_datarate(Nbyte, Napc, Nant, Nchannels, Npols, Tintegration):
+    '''
+    Purpose: calculate data rate based on the following equation:
+
+    Output Data Rate = (( 2 Nbyte x Napc x Nant(Nant-1)/2 + 4 Nant ) x Nchannels x Npols) / Tintegration
+
+    Nbyte = 2 for cross-corrs (16-bit) and Nbyte = 4 for autocorrs (32-bit) -- assume Nbyte = 2
+    Napc = number of WVR streams = 1
+    Nant = number of antennas
+    Nchannels = number of channels = nspws * nchan_per_spw
+    Npols = number of polarizations
+    Tintegration = visibility integration time = 3.024s for 12m and 10.08 for 7m
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    1/4/2023    A.A. Kepley     Original Code    
+    '''
+
+    datarate = (( 2.0 * Nbyte * Napc * Nant * (Nant-1.0)/2.0 + 4 * Nant) * Nchannels * Npols) / Tintegration / 1e9 # GB/s
+
+    datarate = datarate * u.GB / u.s
+    
+    return datarate
+    
+
+def calc_visrate(Nant, Npols, Nchannels, Tintegration):
+    '''
+    Purpose: calculate the visibility rate for each line in the dta base
+
+    Tintegration is assumed to be in seconds
+    
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------
+    1/4/2023    A.A. Kepley     Original Code
+    '''
+
+    Nbase =  Nant * (Nant-1.0)/2.0
+
+    visrate = (2.0 * Npols * Nbase * Nchannels /1e9) / (Tintegration.to(u.hr)) # GVis/Hr
+
+    return visrate
+    
+
+def calc_frac_time(mydb, cycle='c7'):
+    '''
+    Purpose: calculate fraction time for each source
+
+    Each row in input table is mous/source
+
+    To get MOUS time would have to group by MOUS and do some table magic.
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    1/9/2023    A.A. Kepley     Original Code
+    '''
+
+    mydb['frac_'+cycle+'_target_time'] = mydb['target_time_s'] / np.sum(mydb['target_time_s']) # per source
 
 
+    return mydb
 
