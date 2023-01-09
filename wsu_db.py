@@ -1,4 +1,4 @@
-from astropy.table import Table, QTable, join
+from astropy.table import Table, QTable, join, unique
 import numpy as np
 import astropy.units as u
 from astropy import constants as const
@@ -110,6 +110,8 @@ def create_database(cycle7tab):
     nant_all_list = []
 
 
+    ## NOTE: could potentially improve this by using group_by
+    
     # fill in values
     for mymous in mousList:
         idx_mous = cycle7tab['member_ous_uid'] == mymous
@@ -444,7 +446,7 @@ def create_database(cycle7tab):
     # fractional bandwidth
     # ---------------------
     
-    if_mous_tab['wsu_frac_bw_initial'] = if_mous_tab['wsu_bandwidth_early']/if_mous_tab['wsu_freq']
+    if_mous_tab['wsu_frac_bw_early'] = if_mous_tab['wsu_bandwidth_early']/if_mous_tab['wsu_freq']
     if_mous_tab['wsu_frac_bw_later_2x'] = if_mous_tab['wsu_bandwidth_later_2x']/if_mous_tab['wsu_freq']
     if_mous_tab['wsu_frac_bw_later_4x'] = if_mous_tab['wsu_bandwidth_later_4x']/if_mous_tab['wsu_freq']
     if_mous_tab['wsu_frac_bw_spw'] = if_mous_tab['wsu_bandwidth_spw']/if_mous_tab['wsu_freq']
@@ -474,10 +476,11 @@ def add_tos_to_db(orig_db, tos_db):
     '''
 
     new_db = join(orig_db,tos_db,keys=['mous','target_name','proposal_id','array','band','ntarget'], join_type='left')
-    new_db_grouped = new_db.group_by('mous')
+    #new_db_grouped = new_db.group_by('mous') ## IS THIS DOING ANYTHING??
     
-    return new_db_grouped
-
+    #return new_db_grouped
+    return new_db
+    
 def calc_wsu_cal_tos():
     '''
     Purpose: Adjust calibrator TOS for the WSU
@@ -509,13 +512,20 @@ def add_rates_to_db(mydb):
 
     from large_cubes import calc_mfs_size, calc_cube_size
 
+    print(len(mydb))
+    
     # calculate mfs size
     # This will not change with WSU
     mydb['mfssize'] = calc_mfs_size(mydb['imsize'])
 
+    #array_list = ['typical','array']
+    array_list = ['typical']
+    #velres_list = ['stepped','stepped2']
+    velres_list = ['stepped2']
+        
     # calculate cube sizes, data rates, and data volumes.
-    for array in ['typical','array','all']:
-        for velres in ['finest','stepped','stepped2']:
+    for array in array_list:
+        for velres in velres_list:
 
             # calculate cube sizes
             # only depends on number of channels per spw
@@ -525,12 +535,10 @@ def add_rates_to_db(mydb):
 
                 # calculate product size
                 # depends on number of cubes
-                mydb['productsize_wsu_'+stage+'_'+velres] = 2.0* (mydb['wsu_cubesize_'+velres] * mydb['wsu_nspw_'+stage] + mydb['mfssize'])
+                mydb['wsu_productsize_'+stage+'_'+velres] = 2.0 * (mydb['wsu_cubesize_'+velres] + mydb['mfssize']) * mydb['wsu_nspw_'+stage]
 
                 # calculate data rates and data volumes for the visibilities
-                mydb = calc_rates_for_db(mydb,array=array,correlator='wsu',stage=stage,velres=velres)
-                
-    return mydb
+                calc_rates_for_db(mydb,array=array,correlator='wsu',stage=stage,velres=velres)                
 
     
 def calc_rates_for_db(mydb, array='typical',correlator='wsu',stage='early', velres='stepped2'):
@@ -558,20 +566,22 @@ def calc_rates_for_db(mydb, array='typical',correlator='wsu',stage='early', velr
 
     Npols = mydb[correlator+'_npol']
     
-    mylabel = '_'+correlator+'_'+stage+'_'+velres+'_'+array
+    mylabel = stage+'_'+velres+'_'+array
     
-    mydb['datarate'+mylabel] = calc_datarate(Nbyte, Napc, Nant, Nchannels, Npols, Tintegration) #GB/s
-    mydb['visrate'+mylabel] = calc_visrate(Nant, Npols, Nchannels, Tintegration) #Gvis/hr
+    mydb[correlator+'_datarate_'+mylabel] = calc_datarate(Nbyte, Napc, Nant, Nchannels, Npols, Tintegration) #GB/s
+    mydb[correlator+'_visrate_'+mylabel] = calc_visrate(Nant, Npols, Nchannels, Tintegration) #Gvis/hr
 
-    mydb['datavol'+mylabel+'_target'] = mydb['datarate'+mylabel] * mydb['target_time_s'] * u.s # GB/s * s = GB
-    mydb['datavol'+mylabel+'_cal'] = mydb['datarate'+mylabel] * mydb['cal_time_s'] * u.s # GB/s * s = GB
-    mydb['datavol'+mylabel+'_total'] = mydb['datarate'+mylabel] * mydb['time_tot_s'] * u.s # GB/s * s = GB
+    mydb[correlator+'_datavol_'+mylabel+'_target'] = mydb[correlator+'_datarate_'+mylabel] * mydb['target_time_s'] * u.s # GB/s * s = GB
+    mydb[correlator+'_datavol_'+mylabel+'_target_tot'] = mydb[correlator+'_datarate_'+mylabel] * mydb['target_time_tot_s'] * u.s # GB/s * s = GB
 
-    mydb['nvis'+mylabel+'_target'] = mydb['visrate'+mylabel] * (mydb['target_time_s']/3600.0 * u.hr) # Gvis/hr * hr = Gvis
-    mydb['nvis'+mylabel+'_cal'] = mydb['visrate'+mylabel]  * (mydb['cal_time_s']/3600.0 * u.hr) # Gvis/hr * hr = Gvis
-    mydb['nvis'+mylabel+'_total'] = mydb['visrate'+mylabel] * (mydb['time_tot_s']/3600.0 * u.hr)# Gvis/hr * hr = Gvis
-    
-    return mydb
+    mydb[correlator+'_datavol_'+mylabel+'_cal'] = mydb[correlator+'_datarate_'+mylabel] * mydb['cal_time_s'] * u.s # GB/s * s = GB
+    mydb[correlator+'_datavol_'+mylabel+'_total'] = mydb[correlator+'_datarate_'+mylabel] * mydb['time_tot_s'] * u.s # GB/s * s = GB
+
+    mydb[correlator+'_nvis_'+mylabel+'_target'] = mydb[correlator+'_visrate_'+mylabel] * (mydb['target_time_s']/3600.0 * u.hr) # Gvis/hr * hr = Gvis
+    mydb[correlator+'_nvis_'+mylabel+'_target_tot'] = mydb[correlator+'_visrate_'+mylabel] * (mydb['target_time_tot_s']/3600.0 * u.hr) # Gvis/hr * hr = Gvis
+        
+    mydb[correlator+'_nvis_'+mylabel+'_cal'] = mydb[correlator+'_visrate_'+mylabel]  * (mydb['cal_time_s']/3600.0 * u.hr) # Gvis/hr * hr = Gvis
+    mydb[correlator+'_nvis_'+mylabel+'_total'] = mydb[correlator+'_visrate_'+mylabel] * (mydb['time_tot_s']/3600.0 * u.hr)# Gvis/hr * hr = Gvis
     
 
 def calc_datarate(Nbyte, Napc, Nant, Nchannels, Npols, Tintegration):
@@ -633,5 +643,101 @@ def calc_frac_time(mydb, cycle='c7'):
     mydb['frac_'+cycle+'_target_time'] = mydb['target_time_s'] / np.sum(mydb['target_time_s']) # per source
 
 
-    return mydb
+def create_per_mous_db(mydb):
+    '''
+    Purpose: create per mous version of MOUS/SRC data base
 
+    Input: MOUS/src data base
+
+    Output: return MOUS data base with sources aggregated appropriately.
+
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    1/9/2023    A.A. Kepley     Original Code
+    '''
+
+    from statistics import mode
+        
+    mydb_by_mous = mydb.group_by('mous')
+
+    idx_grp = mydb_by_mous.groups.indices[0:-1]
+    
+    newdb_dict = {}
+
+    for mykey in mydb.keys():
+
+        # take first item
+        if mykey in ['mous','proposal_id','array',
+                     'nant_typical','nant_array','nant_all','band','ntarget','mosaic',
+                     'blc_npol', 'blc_nspw','blc_nchan_agg','blc_nchan_max','blc_bandwidth_max','blc_bandwidth_agg',
+                     'wsu_npol', 'wsu_bandwidth_early','wsu_bandwidth_later_2x','wsu_bandwidth_later_4x','wsu_bandwidth_spw',
+                     'wsu_nspw_early','wsu_nspw_later_2x','wsu_nspw_later_4x',
+                     'wsu_frac_bw_early','wsu_frac_bw_later_2x','wsu_frac_bw_later_4x','wsu_frac_bw_spw','wsu_tint',
+                     'nbase_typical','nbase_array','nbase_all',
+                     'bp_time_s','flux_time_s','phase_time_s','pol_time_s','check_time_s',
+                     'target_time_tot_s','time_tot_s', 'cal_time_s',
+                     'wsu_datavol_early_stepped2_typical_cal', 'wsu_datavol_early_stepped2_typical_target_total','wsu_datavol_early_stepped2_typical_total',
+                     'wsu_datavol_later_2x_stepped2_typical_cal', 'wsu_datavol_later_2x_stepped2_typical_target_total','wsu_datavol_later_2x_stepped2_typical_total',
+                     'wsu_datavol_later_4x_stepped2_typical_cal', 'wsu_datavol_later_4x_stepped2_typical_target_total','wsu_datavol_later_4x_stepped2_typical_total',
+                     'wsu_nvis_early_stepped2_typical_cal', 'wsu_nvis_early_stepped2_typical_target_total','wsu_nvis_early_stepped2_typical_total',
+                     'wsu_nvis_later_2x_stepped2_typical_cal', 'wsu_nvis_later_2x_stepped2_typical_target_total','wsu_nvis_later_2x_stepped2_typical_total',
+                     'wsu_nvis_later_4x_stepped2_typical_cal', 'wsu_nvis_later_4x_stepped2_typical_target_total','wsu_nvis_later_4x_stepped2_typical_total']:
+            
+            newdb_dict[mykey] = mydb[mykey][idx_grp]            
+
+
+        # take max
+        elif mykey in ['s_fov','s_resolution','imsize','pb',
+                       'wsu_cubesize_finest',
+                       'mfssize',
+                       'wsu_nchan_spw_finest','wsu_nchan_spw_stepped','wsu_nchan_stepped2',
+                       'wsu_datarate_early_stepped2','wsu_datarate_later_2x_stepped2','wsu_datarate_later_4x_stepped2',
+                       'wsu_visrate_early_stepped2','wsu_visrate_later_2x_stepped2','wsu_visrate_later_4x_stepped2']:
+
+            
+            # the following code gave:            
+            #*** AttributeError: 'Quantity' object has no 'groups' member
+            # looks like this issue was fixed: https://github.com/astropy/astropy/pull/12825
+            # astropy 5.1 I'm running astropy 4.2.1
+            
+            newdb_dict[mykey] = mydb_by_mous[mykey].groups.aggregate(np.max)
+            
+        # take sum
+        elif mykey in ['wsu_productsize_early_stepped2','wsu_productsize_later_2x_stepped2','wsu_productsize_later_4x_stepped2']:
+
+            newdb_dict[mykey] = mydb_by_mous[mykey].groups.aggregate(np.sum)
+
+        # take min
+        elif mykey in ['cell','blc_specwidth','blc_velres',
+                       'wsu_specwidth_finest','wsu_specwidth_stepped','wsu_specwidth_stepped2',
+                       'wsu_velres_finest','wsu_velres_stepped','wsu_velres_stepped2']:
+            new_db_dict[mykey] = mydb_by_mous[mykey].groups.aggregate(np.min)            
+
+        # take mean
+        elif mykey in ['blc_freq','wsu_freq']:
+
+            new_db_dict[mykey] = mydb_by_mous[mykey].groups.aggregate(np.mean)
+
+        # take mode
+        elif mykey in ['wsu_chanavg_finest','wsu_chanavg_stepped','wsu_chanavg_stepped2']:
+            new_db_dict[mykey] = mydb_by_mous[mykey].groups.aggregate(mode)
+
+        # drop from output dictionary
+        elif mykey in ['target_name','target_time_s','wsu_datavol_early_finest_typical_target']:
+            continue
+
+        # not found
+        else:
+            print("key not recognized: " + mykey)
+        
+
+    # Then create table
+    mous_db =QTable(newdb_dict)
+
+    return mous_db
+
+        
+    
+    
+
+    

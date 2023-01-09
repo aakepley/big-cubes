@@ -57,7 +57,7 @@ def under_to_slash(uid):
         >>> print(mous)
         uid://A001/X1341/X1b\
 
-    ## TAKEN FROM CODE BY ANDY LIPNICKY
+    ## CODE BY ANDY LIPNICKY
     
     """
     # If it's empty, return it.
@@ -88,7 +88,7 @@ def slash_to_under(uid):
         >>> print(mous)
         uid___A001_X1341_X1b
 
-    ## TAKEN FROM CODE BY ANDY LIPNICKY
+    ## CODE BY ANDY LIPNICKY
     
     """
     # If it's empty, return it
@@ -100,7 +100,24 @@ def slash_to_under(uid):
     # Simply replace all colon and slash chararcters with underscores
     return uid.replace(":", "_").replace("/", "_")
 
+def fix_mous_col(mydb):
+    '''
+    Purpose: If the mous column has underscores rather than slashes, switch to slashes, so we can join tables.
 
+    
+    Date        Programmer      Description of Changes
+    --------------------------------------------------- 
+    1/9/2023    A.A. Kepley     Original Code
+    '''
+
+    orig_mous_list = mydb['mous']
+    new_mous_list = []
+    for mous in orig_mous_list:
+        new_mous_list.append(under_to_slash(mous))
+        
+    mydb.replace_column('mous',new_mous_list)
+
+       
 
 def get_archive_info(year=2019,filename='test.csv'):
     '''
@@ -607,7 +624,7 @@ def calc_time_on_source(cal_info_file,
 
     print('made it to table creation')
 
-    ## TODO: make the below a Qtable?
+    ## TODO: make the below a Qtable and add appropriate units?
     
     # create final table
     tout = Table(data=[project_id_arr,
@@ -643,7 +660,7 @@ def calc_time_on_source(cal_info_file,
 
 
     return tout
-    
+
     
 def calc_nchan_max_points_per_fov(cube_limit, points_per_fov, pixels_per_beam=25.0, nbin=1.0, chan_limit = 7680.0,frac_fov=1.0):
     '''
