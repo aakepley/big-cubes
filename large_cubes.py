@@ -6,7 +6,7 @@ import astropy.units as u
 import matplotlib.pyplot as plt
 import re
 import math
-from astropy.table import Table
+from astropy.table import Table, QTable, join
 import ipdb
 #from ast import literal_eval
 
@@ -161,7 +161,7 @@ def read_archive_info(filename):
     return result
     
 
-def munge_archive_info(result,filename):
+def munge_archive_info(result,filename, l80_file=None):
     '''
     munge archive info into state that I can use
 
@@ -345,7 +345,7 @@ def munge_archive_info(result,filename):
     result.write(filename,overwrite=True)
         
 
-        
+
 def calculate_nchan(result):
     '''
     reverse engineer nchan based on technical handbook information
@@ -486,6 +486,8 @@ def calc_time_on_source(cal_info_file,
     11/23/2022  A.A.Kepley      Original Code
     '''
 
+    import astropy.units as u
+    
     t = Table.read(cal_info_file, format='ascii',delimiter='|',
                    guess=False,
                    names=('project_id','mous','band','array','asdm','asdm_size_gb','na1','target_name','intent','tos_s','na2'))
@@ -608,17 +610,17 @@ def calc_time_on_source(cal_info_file,
         mous_arr.extend([mous] * n_src)
         band_arr.extend([band] * n_src)
         array_arr.extend([array] * n_src)
-        bp_time_arr.extend([bp_time] * n_src)
-        flux_time_arr.extend([flux_time] * n_src)
-        phase_time_arr.extend([phase_time] * n_src)
-        pol_time_arr.extend([pol_time]*n_src)
-        check_time_arr.extend([check_time] * n_src)
-        target_time_arr.extend(target_dict.values()) # no repeat needed b/c have all sources
+        bp_time_arr.extend([bp_time] * n_src) 
+        flux_time_arr.extend([flux_time] * n_src) 
+        phase_time_arr.extend([phase_time] * n_src) 
+        pol_time_arr.extend([pol_time]*n_src)  
+        check_time_arr.extend([check_time] * n_src) 
+        target_time_arr.extend(target_dict.values())  # no repeat needed b/c have all sources
         target_name_arr.extend(target_dict.keys()) # no repeat needed b/c have all sources
         target_time_tot_arr.extend([target_time_tot]*n_src)        
         ntarget_arr.extend([n_src]*n_src)
-        time_tot_arr.extend([time_tot]*n_src)
-        cal_time_arr.extend([cal_time]*n_src)
+        time_tot_arr.extend([time_tot]*n_src) 
+        cal_time_arr.extend([cal_time]*n_src) 
 
         #ipdb.set_trace()
 
@@ -627,36 +629,36 @@ def calc_time_on_source(cal_info_file,
     ## TODO: make the below a Qtable and add appropriate units?
     
     # create final table
-    tout = Table(data=[project_id_arr,
-                       mous_arr,
-                       band_arr,
-                       array_arr,
-                       bp_time_arr,
-                       flux_time_arr,
-                       phase_time_arr,
-                       pol_time_arr,
-                       check_time_arr,
-                       target_time_arr,
-                       target_name_arr,
-                       target_time_tot_arr,                       
-                       np.array(ntarget_arr,dtype=np.float),
-                       time_tot_arr,
-                       cal_time_arr],
+    tout = QTable(data=[project_id_arr,
+                        mous_arr,
+                        band_arr,
+                        array_arr,
+                        bp_time_arr * u.s,
+                        flux_time_arr * u.s,
+                        phase_time_arr * u.s,
+                        pol_time_arr * u.s,
+                        check_time_arr * u.s,
+                        target_time_arr * u.s,
+                        target_name_arr,
+                        target_time_tot_arr * u.s,                       
+                        np.array(ntarget_arr,dtype=np.float),
+                        time_tot_arr * u.s,
+                        cal_time_arr * u.s],
                  names=['proposal_id',
                         'mous',
                         'band',
                         'array',
-                        'bp_time_s',
-                        'flux_time_s',
-                        'phase_time_s',
-                        'pol_time_s',
-                        'check_time_s',
-                        'target_time_s',
+                        'bp_time',
+                        'flux_time',
+                        'phase_time',
+                        'pol_time',
+                        'check_time',
+                        'target_time',
                         'target_name',
-                        'target_time_tot_s',
+                        'target_time_tot',
                         'ntarget',
-                        'time_tot_s',
-                        'cal_time_s'])
+                        'time_tot',
+                        'cal_time'])
 
 
     return tout

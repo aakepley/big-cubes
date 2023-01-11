@@ -76,6 +76,7 @@ def create_database(cycle7tab):
     blc_bw_agg = []
     blc_bw_max = []
     blc_vel_res = []
+    blc_tint = []
 
     # WSU info
     wsu_npol_list = []
@@ -154,17 +155,17 @@ def create_database(cycle7tab):
                 nant_typical = 47
                 nant_array = 54
                 nant_all = 66 #12m+7m+TP
-                tint = 3.024 #s
+                wsu_tint = 3.024 #s
             elif array == '7m':
                 nant_typical = 10
                 nant_array = 12
                 nant_all = 16 # total power plus 7m
-                tint = 10.08 #s
+                wsu_tint = 10.08 #s
 
             nant_typical_list.append(nant_typical)
             nant_array_list.append(nant_array)
             nant_all_list.append(nant_all)
-            wsu_tint_list.append(tint)
+            wsu_tint_list.append(wsu_tint)
             
             # FOV
             s_fov = np.mean(cycle7tab[idx]['s_fov']) 
@@ -193,7 +194,8 @@ def create_database(cycle7tab):
             # cell
             cell = np.mean(cycle7tab[idx]['cell'])
             cell_list.append(cell)
-            
+
+
             # BLC info
             # ---------
 
@@ -229,6 +231,7 @@ def create_database(cycle7tab):
             # total aggregate bandwidth -- does NOT account for overlapping windows
             bw_agg = np.sum(cycle7tab[idx]['bandwidth'])/1e9 # bandwidth in Hz 
             blc_bw_agg.append(bw_agg)
+
             
             # WSU Frequency
             # -------------
@@ -345,6 +348,9 @@ def create_database(cycle7tab):
             wsu_nspw_later_4x.append(round(bw/spw_bw))                
  
     # put appropriate units on quantities.
+    pb_list = np.array(pb_list) * u.arcsec
+    cell_list = np.array(cell_list) * u.arcsec
+    
     s_fov_list = np.array(s_fov_list) * u.deg
     s_resolution_list = np.array(s_resolution_list) * u.arcsec
 
@@ -465,6 +471,61 @@ def create_database(cycle7tab):
     return if_mous_tab
 
 
+def add_l80(orig_db,l80_file=None):
+    '''
+    Purpose: add L80 to data base
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    1/11/2023   A.A. Kepley     Original Code
+    '''
+
+    # read in l80 file
+    if not bool(l80_file):
+        print("Need to give L80 file")
+        return
+    
+    l80_tab = Table.read(l80_file)
+    l80_tab.rename_column('Member ous id','mous')
+    l80_tab.rename_column('L80 BL','L80')
+    l80_tab.rename_column('ALMA source name','target_name')
+
+    new_db = join(orig_db,l80_tab,keys=('mous','target_name'),join_type='left')
+    new_db['L80'].unit = u.m
+
+    return new_db
+
+    
+def add_blc_tint(orig_db, breakpt_12m=3000.0 * u.m):
+    '''
+    Purpose: Add baseline correlator integration time
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    1/11/2023   A.A. Kepley     Original Code   
+    
+    '''
+
+    # default tint values
+    tint_7m = 10.1 #s
+    tint_12m_short = 6.05 #s
+    tint_12m_long = 2.02 #s ## also see values of 3.02s for some projects
+    
+    orig_db['blc_tint'] = np.ones(len(orig_db)) * u.s
+
+    # set 7m
+    idx = orig_db['array'] == '7m'
+    orig_db['blc_tint'][idx] = tint_7m * orig_db['blc_tint'][idx] 
+    
+    # add 12m values
+    idx = (orig_db['array'] == '12m') & (orig_db['L80'] > breakpt_12m)
+    orig_db['blc_tint'][idx] = tint_12m_long * orig_db['blc_tint'][idx]
+
+    idx = (orig_db['array'] == '12m') & (orig_db['L80'] <= breakpt_12m )
+    orig_db['blc_tint'][idx] = tint_12m_short * orig_db['blc_tint'][idx]
+
+
+
 def add_tos_to_db(orig_db, tos_db):
     '''
     Purpose: Add time on source for sources and calibrators to data base. Needed
@@ -511,8 +572,6 @@ def add_rates_to_db(mydb):
     '''
 
     from large_cubes import calc_mfs_size, calc_cube_size
-
-    print(len(mydb))
     
     # calculate mfs size
     # This will not change with WSU
@@ -540,6 +599,9 @@ def add_rates_to_db(mydb):
                 # calculate data rates and data volumes for the visibilities
                 calc_rates_for_db(mydb,array=array,correlator='wsu',stage=stage,velres=velres)                
 
+        # calculate BLC correlator values
+        calc_rates_for_db(mydb,array=array,correlator='blc',stage='',velres='')
+                
     
 def calc_rates_for_db(mydb, array='typical',correlator='wsu',stage='early', velres='stepped2'):
     '''
@@ -551,6 +613,7 @@ def calc_rates_for_db(mydb, array='typical',correlator='wsu',stage='early', velr
     
     '''
 
+    
     Nbyte = 2.0 # cross-corrs
     Napc = 1.0 # offline WVR correlators
     Nant = mydb['nant_'+array]
@@ -559,29 +622,29 @@ def calc_rates_for_db(mydb, array='typical',correlator='wsu',stage='early', velr
         Nspws = mydb[correlator+'_nspw_'+stage]
         Nchan_per_spw = mydb[correlator+'_nchan_spw_'+velres]
         Nchannels = Nspws * Nchan_per_spw
+        mylabel = stage+'_'+velres+'_'+array
     else:
         Nchannels = mydb[correlator+'_nchan_agg']
-
+        mylabel = array
+        
     Tintegration = mydb[correlator+'_tint']
 
     Npols = mydb[correlator+'_npol']
     
-    mylabel = stage+'_'+velres+'_'+array
-    
     mydb[correlator+'_datarate_'+mylabel] = calc_datarate(Nbyte, Napc, Nant, Nchannels, Npols, Tintegration) #GB/s
-    mydb[correlator+'_visrate_'+mylabel] = calc_visrate(Nant, Npols, Nchannels, Tintegration) #Gvis/hr
+    mydb[correlator+'_visrate_'+mylabel] = calc_visrate(Nant, Npols, Nchannels, Tintegration)  #Gvis/hr
 
-    mydb[correlator+'_datavol_'+mylabel+'_target'] = mydb[correlator+'_datarate_'+mylabel] * mydb['target_time_s'] * u.s # GB/s * s = GB
-    mydb[correlator+'_datavol_'+mylabel+'_target_tot'] = mydb[correlator+'_datarate_'+mylabel] * mydb['target_time_tot_s'] * u.s # GB/s * s = GB
+    mydb[correlator+'_datavol_'+mylabel+'_target'] = mydb[correlator+'_datarate_'+mylabel] * mydb['target_time'] # GB/s * s = GB
+    mydb[correlator+'_datavol_'+mylabel+'_target_tot'] = mydb[correlator+'_datarate_'+mylabel] * mydb['target_time_tot'] # GB/s * s = GB
 
-    mydb[correlator+'_datavol_'+mylabel+'_cal'] = mydb[correlator+'_datarate_'+mylabel] * mydb['cal_time_s'] * u.s # GB/s * s = GB
-    mydb[correlator+'_datavol_'+mylabel+'_total'] = mydb[correlator+'_datarate_'+mylabel] * mydb['time_tot_s'] * u.s # GB/s * s = GB
+    mydb[correlator+'_datavol_'+mylabel+'_cal'] = mydb[correlator+'_datarate_'+mylabel] * mydb['cal_time'] # GB/s * s = GB
+    mydb[correlator+'_datavol_'+mylabel+'_total'] = mydb[correlator+'_datarate_'+mylabel] * mydb['time_tot'] # GB/s * s = GB
 
-    mydb[correlator+'_nvis_'+mylabel+'_target'] = mydb[correlator+'_visrate_'+mylabel] * (mydb['target_time_s']/3600.0 * u.hr) # Gvis/hr * hr = Gvis
-    mydb[correlator+'_nvis_'+mylabel+'_target_tot'] = mydb[correlator+'_visrate_'+mylabel] * (mydb['target_time_tot_s']/3600.0 * u.hr) # Gvis/hr * hr = Gvis
+    mydb[correlator+'_nvis_'+mylabel+'_target'] = mydb[correlator+'_visrate_'+mylabel] * (mydb['target_time'].to(u.hr))  # Gvis/hr * hr = Gvis
+    mydb[correlator+'_nvis_'+mylabel+'_target_tot'] = mydb[correlator+'_visrate_'+mylabel] * (mydb['target_time_tot'].to(u.hr)) # Gvis/hr * hr = Gvis
         
-    mydb[correlator+'_nvis_'+mylabel+'_cal'] = mydb[correlator+'_visrate_'+mylabel]  * (mydb['cal_time_s']/3600.0 * u.hr) # Gvis/hr * hr = Gvis
-    mydb[correlator+'_nvis_'+mylabel+'_total'] = mydb[correlator+'_visrate_'+mylabel] * (mydb['time_tot_s']/3600.0 * u.hr)# Gvis/hr * hr = Gvis
+    mydb[correlator+'_nvis_'+mylabel+'_cal'] = mydb[correlator+'_visrate_'+mylabel]  * (mydb['cal_time'].to(u.hr)) # Gvis/hr * hr = Gvis
+    mydb[correlator+'_nvis_'+mylabel+'_total'] = mydb[correlator+'_visrate_'+mylabel] * (mydb['time_tot'].to(u.hr))# Gvis/hr * hr = Gvis
     
 
 def calc_datarate(Nbyte, Napc, Nant, Nchannels, Npols, Tintegration):
@@ -602,9 +665,7 @@ def calc_datarate(Nbyte, Napc, Nant, Nchannels, Npols, Tintegration):
     1/4/2023    A.A. Kepley     Original Code    
     '''
 
-    datarate = (( 2.0 * Nbyte * Napc * Nant * (Nant-1.0)/2.0 + 4 * Nant) * Nchannels * Npols) / Tintegration / 1e9 # GB/s
-
-    datarate = datarate * u.GB / u.s
+    datarate = (( 2.0 * Nbyte * Napc * Nant * (Nant-1.0)/2.0 + 4 * Nant) * Nchannels * Npols) * u.GB / Tintegration / 1e9 # GB/s
     
     return datarate
     
@@ -620,9 +681,12 @@ def calc_visrate(Nant, Npols, Nchannels, Tintegration):
     1/4/2023    A.A. Kepley     Original Code
     '''
 
+    # define Gvis unit
+    gvis = u.def_unit('Gvis')
+
     Nbase =  Nant * (Nant-1.0)/2.0
 
-    visrate = (2.0 * Npols * Nbase * Nchannels /1e9) / (Tintegration.to(u.hr)) # GVis/Hr
+    visrate = (2.0 * Npols * Nbase * Nchannels /1e9) * gvis / (Tintegration.to(u.hr)) # GVis/Hr
 
     return visrate
     
@@ -640,104 +704,156 @@ def calc_frac_time(mydb, cycle='c7'):
     1/9/2023    A.A. Kepley     Original Code
     '''
 
-    mydb['frac_'+cycle+'_target_time'] = mydb['target_time_s'] / np.sum(mydb['target_time_s']) # per source
+    mydb['frac_'+cycle+'_target_time'] = mydb['target_time'] / np.sum(mydb['target_time']) # per source
 
-
+    
 def create_per_mous_db(mydb):
     '''
-    Purpose: create per mous version of MOUS/SRC data base
 
-    Input: MOUS/src data base
+    Purpose: create a per mous table. Fancy way using table
+    groupings failed, so doing this the old fashioned way with a loop.
 
-    Output: return MOUS data base with sources aggregated appropriately.
+    Input: data base with mous/src per line
+
+    Output: data base with mous per line
+    
 
     Date        Programmer      Description of Changes
-    ---------------------------------------------------
-    1/9/2023    A.A. Kepley     Original Code
+    ----------------------------------------------------------------------
+    1/10/2023   A.A. Kepley     Original Code
     '''
 
     from statistics import mode
-        
+    import re
+
+
+    # get groups
     mydb_by_mous = mydb.group_by('mous')
 
-    idx_grp = mydb_by_mous.groups.indices[0:-1]
-    
+    # create output dictionary
     newdb_dict = {}
+    for mykey in mydb_by_mous.keys():
+        newdb_dict[mykey] = []
 
-    for mykey in mydb.keys():
+    # add variable to turn off messages after first round.
+    keymsg = True
 
-        # take first item
-        if mykey in ['mous','proposal_id','array',
-                     'nant_typical','nant_array','nant_all','band','ntarget','mosaic',
-                     'blc_npol', 'blc_nspw','blc_nchan_agg','blc_nchan_max','blc_bandwidth_max','blc_bandwidth_agg',
-                     'wsu_npol', 'wsu_bandwidth_early','wsu_bandwidth_later_2x','wsu_bandwidth_later_4x','wsu_bandwidth_spw',
-                     'wsu_nspw_early','wsu_nspw_later_2x','wsu_nspw_later_4x',
-                     'wsu_frac_bw_early','wsu_frac_bw_later_2x','wsu_frac_bw_later_4x','wsu_frac_bw_spw','wsu_tint',
-                     'nbase_typical','nbase_array','nbase_all',
-                     'bp_time_s','flux_time_s','phase_time_s','pol_time_s','check_time_s',
-                     'target_time_tot_s','time_tot_s', 'cal_time_s',
-                     'wsu_datavol_early_stepped2_typical_cal', 'wsu_datavol_early_stepped2_typical_target_total','wsu_datavol_early_stepped2_typical_total',
-                     'wsu_datavol_later_2x_stepped2_typical_cal', 'wsu_datavol_later_2x_stepped2_typical_target_total','wsu_datavol_later_2x_stepped2_typical_total',
-                     'wsu_datavol_later_4x_stepped2_typical_cal', 'wsu_datavol_later_4x_stepped2_typical_target_total','wsu_datavol_later_4x_stepped2_typical_total',
-                     'wsu_nvis_early_stepped2_typical_cal', 'wsu_nvis_early_stepped2_typical_target_total','wsu_nvis_early_stepped2_typical_total',
-                     'wsu_nvis_later_2x_stepped2_typical_cal', 'wsu_nvis_later_2x_stepped2_typical_target_total','wsu_nvis_later_2x_stepped2_typical_total',
-                     'wsu_nvis_later_4x_stepped2_typical_cal', 'wsu_nvis_later_4x_stepped2_typical_target_total','wsu_nvis_later_4x_stepped2_typical_total']:
-            
-            newdb_dict[mykey] = mydb[mykey][idx_grp]            
+    # iterate over groups and calculate aggregate values
+    for mygroup in mydb_by_mous.groups:
 
-
-        # take max
-        elif mykey in ['s_fov','s_resolution','imsize','pb',
-                       'wsu_cubesize_finest',
-                       'mfssize',
-                       'wsu_nchan_spw_finest','wsu_nchan_spw_stepped','wsu_nchan_stepped2',
-                       'wsu_datarate_early_stepped2','wsu_datarate_later_2x_stepped2','wsu_datarate_later_4x_stepped2',
-                       'wsu_visrate_early_stepped2','wsu_visrate_later_2x_stepped2','wsu_visrate_later_4x_stepped2']:
-
-            
-            # the following code gave:            
-            #*** AttributeError: 'Quantity' object has no 'groups' member
-            # looks like this issue was fixed: https://github.com/astropy/astropy/pull/12825
-            # astropy 5.1 I'm running astropy 4.2.1
-            
-            newdb_dict[mykey] = mydb_by_mous[mykey].groups.aggregate(np.max)
-            
-        # take sum
-        elif mykey in ['wsu_productsize_early_stepped2','wsu_productsize_later_2x_stepped2','wsu_productsize_later_4x_stepped2']:
-
-            newdb_dict[mykey] = mydb_by_mous[mykey].groups.aggregate(np.sum)
-
-        # take min
-        elif mykey in ['cell','blc_specwidth','blc_velres',
-                       'wsu_specwidth_finest','wsu_specwidth_stepped','wsu_specwidth_stepped2',
-                       'wsu_velres_finest','wsu_velres_stepped','wsu_velres_stepped2']:
-            new_db_dict[mykey] = mydb_by_mous[mykey].groups.aggregate(np.min)            
-
-        # take mean
-        elif mykey in ['blc_freq','wsu_freq']:
-
-            new_db_dict[mykey] = mydb_by_mous[mykey].groups.aggregate(np.mean)
-
-        # take mode
-        elif mykey in ['wsu_chanavg_finest','wsu_chanavg_stepped','wsu_chanavg_stepped2']:
-            new_db_dict[mykey] = mydb_by_mous[mykey].groups.aggregate(mode)
-
-        # drop from output dictionary
-        elif mykey in ['target_name','target_time_s','wsu_datavol_early_finest_typical_target']:
-            continue
-
-        # not found
-        else:
-            print("key not recognized: " + mykey)
         
+        for mykey in mygroup.keys():
+            
+            # take max
+            if ((mykey in ['s_fov','s_resolution', 'imsize','pb','mfssize']) or
+                (re.match('wsu_cubesize',mykey)) or
+                (re.match('wsu_nchan',mykey)) or
+                (re.match('wsu_datarate',mykey)) or
+                (re.match('wsu_visrate',mykey))):
+                
+                myval = np.max(mygroup[mykey])
+                newdb_dict[mykey].append(myval)
 
-    # Then create table
-    mous_db =QTable(newdb_dict)
+            # take min
+            elif ((mykey in ['cell','blc_specwidth','blc_velres']) or
+                (re.match('wsu_specwidth',mykey)) or
+                (re.match('wsu_velres',mykey))):
+                myval = np.min(mygroup[mykey])
+                newdb_dict[mykey].append(myval)
+                    
+            # take sum
+            elif (re.match('wsu_productsize',mykey)):
+                myval = np.sum(mygroup[mykey])
+                newdb_dict[mykey].append(myval)
 
+            # take mean
+            elif mykey in ['blc_freq','wsu_freq']:
+                myval = np.mean(mygroup[mykey])
+                newdb_dict[mykey].append(myval)
+
+            # take mode
+            elif (re.match('wsu_chanavg',mykey)):
+                myval = mode(mygroup[mykey])
+                newdb_dict[mykey].append(myval)
+
+            # take first value
+            else:
+                if keymsg:
+                    print('Taking first value. Key aggregation not specified: ' + mykey)
+
+                newdb_dict[mykey].append(mygroup[mykey][0])
+
+        # don't display message after first group since all groups are the same.
+        keymsg = False
+
+
+    # create dictionary
+    mous_db = QTable(newdb_dict)
+
+    # remove target specific keys because they aren't relevant to a per mous data base
+    for mykey in mous_db.keys():
+        if re.search('_target$',mykey):
+            mous_db.remove_column(mykey)
+            
+        if mykey == 'target_time':
+            mous_db.remove_column(mykey)
+
+        if mykey == 'target_name':
+            mous_db.remove_column(mykey)
+            
     return mous_db
 
-        
+
+
+def join_wsu_and_mit_dbs(mous_db,mit_db):
+    '''
+    Purpose: join wsu and mit data bases removing columns that aren't needed and updating units as needed
+
+    Inputs:
+        -- mous_db: assumes per mous, astropy table
+
+        -- mit_db: assumes per mous, astropy table
     
-    
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    1/11/2023   A.A. Kepley     Original Code
+    '''
+
+    mous_mit_db = join(mous_db,mit_db)
 
     
+    # remove columns related to self-cal
+    for mykey in ['webpredrms','webcontrms','webcontBW','webfreq',
+                 'webbm','webdirtyDR','webDRcorr','webcontpk','webfreqline',
+                 'webbmline','webpredrmsline','webdirtyDRline','webDRcorrline',
+                 'weblinerms','weblinepk','weblineBW']:
+        if mykey in mous_mit_db.keys():
+            mous_mit_db.remove_column(mykey)
+
+                                
+    # remove redundant columns
+    mous_mit_db.remove_columns(['nscience','nspw','project'])
+    
+    # remove column that is wrong (bug in pipeline code)
+    mous_mit_db.remove_column('prodsizeaftercube')
+
+    # add units to data from mitigated db
+    for mykey in ['totaltime','imgtime','cubetime','aggtime','fctime']:
+        mous_mit_db[mykey].unit = u.hr
+
+    for mykey in ['allowedcubesize','allowedcubelimit','predcubesize','mitigatedcubesize',
+                  'allowedprodsize','initialprodsize','mitigatedprodsize']:
+        mous_mit_db[mykey].unit = u.GB
+    
+    # fix mitigated column for cases where there was a warning but no mitigation
+    idx = (mous_mit_db['mitigatedprodsize'] == mous_mit_db['initialprodsize']) & (mous_mit_db['mitigated'] == True)
+    mous_mit_db['mitigated'][idx] = False
+
+    # change column names to clearly indicate that they are pl times
+    for mykey in ['totaltime','imgtime','cubetime','aggtime','fctime']:
+        mous_mit_db.rename_column(mykey,'pl_'+mykey)
+
+    # calculate calibration time
+    mous_mit_db['pl_caltime'] = mous_mit_db['pl_totaltime'] - mous_mit_db['pl_imgtime']
+        
+    return mous_mit_db
