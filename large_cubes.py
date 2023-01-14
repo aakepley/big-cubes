@@ -6,11 +6,12 @@ import astropy.units as u
 import matplotlib.pyplot as plt
 import re
 import math
-from astropy.table import Table
+from astropy.table import Table, QTable, join
 import ipdb
 #from ast import literal_eval
 
 
+### NOT SURE THIS IS HELPFUL INFORMATION ANY MORE
 # things needed by all functions
 band2specscan = {'nchan':595200.0,
                  'imsize':10670.0,
@@ -36,6 +37,87 @@ band2specscan_160MBs = {'nchan': 49600.0,
 band2specscan['frac_bw'] = band2specscan['bandwidth']/band2specscan['freq']
 
 ### TODO -- ADD CONFIG INFO HERE IF WORKS?
+
+
+def under_to_slash(uid):
+    """
+    Purpose: 
+        Transition a given UID in "___" form to "://" form.
+
+    Inputs: 
+        UID : string
+            An ALMA UID string (e.g. ASDM, MOUS)
+
+    Outputs:
+        UID in opposite form
+
+    Example:
+        >>> mous = 'uid___A001_X1341_X1b'
+        >>> mous = under_to_slash(mous)
+        >>> print(mous)
+        uid://A001/X1341/X1b\
+
+    ## CODE BY ANDY LIPNICKY
+    
+    """
+    # If it's empty, return it.
+    if not uid:
+        return uid
+    # If it's in the correct form already, simply return it.
+    if '://' in uid:
+        return uid
+    # Replace all underscores with slashes, split (and thus 
+    # remove) the first slash and join it with a colon.
+    return ':'.join(uid.replace("_", "/").split("/",1))
+
+def slash_to_under(uid):
+    """
+    Purpose: 
+        Transition a given UID in "://" form to "___" form.
+
+    Inputs: 
+        UID : string
+            An ALMA UID string (e.g. ASDM, MOUS)
+
+    Outputs:
+        UID in opposite form
+
+    Example:
+        >>> mous = 'uid://A001/X1341/X1b'
+        >>> mous = slash_to_under(mous)
+        >>> print(mous)
+        uid___A001_X1341_X1b
+
+    ## CODE BY ANDY LIPNICKY
+    
+    """
+    # If it's empty, return it
+    if not uid:
+        return uid
+    # If it's in the correct form already, simply return it.
+    if '___' in uid:
+        return uid
+    # Simply replace all colon and slash chararcters with underscores
+    return uid.replace(":", "_").replace("/", "_")
+
+def fix_mous_col(mydb):
+    '''
+    Purpose: If the mous column has underscores rather than slashes, switch to slashes, so we can join tables.
+
+    
+    Date        Programmer      Description of Changes
+    --------------------------------------------------- 
+    1/9/2023    A.A. Kepley     Original Code
+    '''
+
+    orig_mous_list = mydb['mous']
+    new_mous_list = []
+    for mous in orig_mous_list:
+        new_mous_list.append(under_to_slash(mous))
+        
+    mydb.replace_column('mous',new_mous_list)
+
+       
 
 def get_archive_info(year=2019,filename='test.csv'):
     '''
@@ -79,7 +161,7 @@ def read_archive_info(filename):
     return result
     
 
-def munge_archive_info(result,filename):
+def munge_archive_info(result,filename, l80_file=None):
     '''
     munge archive info into state that I can use
 
@@ -263,7 +345,7 @@ def munge_archive_info(result,filename):
     result.write(filename,overwrite=True)
         
 
-        
+
 def calculate_nchan(result):
     '''
     reverse engineer nchan based on technical handbook information
@@ -404,6 +486,8 @@ def calc_time_on_source(cal_info_file,
     11/23/2022  A.A.Kepley      Original Code
     '''
 
+    import astropy.units as u
+    
     t = Table.read(cal_info_file, format='ascii',delimiter='|',
                    guess=False,
                    names=('project_id','mous','band','array','asdm','asdm_size_gb','na1','target_name','intent','tos_s','na2'))
@@ -429,6 +513,8 @@ def calc_time_on_source(cal_info_file,
     target_name_arr = []
     target_time_arr = []
     target_time_tot_arr = []
+    time_tot_arr = []
+    cal_time_arr = []
     
     # let's iterate over MOUS
     for mous in mous_list:
@@ -477,6 +563,7 @@ def calc_time_on_source(cal_info_file,
         target_dict = {}
         target_time_tot = 0.0
         time_tot = 0.0
+        cal_time = 0.0
         n_src = 0.0
         
         for asdm in asdm_list:
@@ -510,7 +597,8 @@ def calc_time_on_source(cal_info_file,
                     print("Intent not recognized: " + row['intent'])
 
         # calculate total time and number of target sources
-        time_tot = bp_time + flux_time + phase_time + pol_time + check_time + target_time_tot 
+        cal_time = bp_time + flux_time + phase_time + pol_time + check_time      
+        time_tot = cal_time + target_time_tot 
         n_src = len(target_dict)
 
         #ipdb.set_trace()
@@ -522,52 +610,59 @@ def calc_time_on_source(cal_info_file,
         mous_arr.extend([mous] * n_src)
         band_arr.extend([band] * n_src)
         array_arr.extend([array] * n_src)
-        bp_time_arr.extend([bp_time] * n_src)
-        flux_time_arr.extend([flux_time] * n_src)
-        phase_time_arr.extend([phase_time] * n_src)
-        pol_time_arr.extend([pol_time]*n_src)
-        check_time_arr.extend([check_time] * n_src)
-        target_time_arr.extend(target_dict.values()) # no repeat needed b/c have all sources
+        bp_time_arr.extend([bp_time] * n_src) 
+        flux_time_arr.extend([flux_time] * n_src) 
+        phase_time_arr.extend([phase_time] * n_src) 
+        pol_time_arr.extend([pol_time]*n_src)  
+        check_time_arr.extend([check_time] * n_src) 
+        target_time_arr.extend(target_dict.values())  # no repeat needed b/c have all sources
         target_name_arr.extend(target_dict.keys()) # no repeat needed b/c have all sources
         target_time_tot_arr.extend([target_time_tot]*n_src)        
         ntarget_arr.extend([n_src]*n_src)
+        time_tot_arr.extend([time_tot]*n_src) 
+        cal_time_arr.extend([cal_time]*n_src) 
 
         #ipdb.set_trace()
 
     print('made it to table creation')
-        
+
+    ## TODO: make the below a Qtable and add appropriate units?
+    
     # create final table
-    tout = Table(data=[project_id_arr,
-                       mous_arr,
-                       band_arr,
-                       array_arr,
-                       bp_time_arr,
-                       flux_time_arr,
-                       phase_time_arr,
-                       pol_time_arr,
-                       check_time_arr,
-                       #src_dict_arr,
-                       target_time_arr,
-                       target_name_arr,
-                       target_time_tot_arr,
-                       np.array(ntarget_arr,dtype=np.float)],
+    tout = QTable(data=[project_id_arr,
+                        mous_arr,
+                        band_arr,
+                        array_arr,
+                        bp_time_arr * u.s,
+                        flux_time_arr * u.s,
+                        phase_time_arr * u.s,
+                        pol_time_arr * u.s,
+                        check_time_arr * u.s,
+                        target_time_arr * u.s,
+                        target_name_arr,
+                        target_time_tot_arr * u.s,                       
+                        np.array(ntarget_arr,dtype=np.float),
+                        time_tot_arr * u.s,
+                        cal_time_arr * u.s],
                  names=['proposal_id',
                         'mous',
                         'band',
                         'array',
-                        'bp_time_s',
-                        'flux_time_s',
-                        'phase_time_s',
-                        'pol_time_s',
-                        'check_time_s',
-                        #'src_dict',
-                        'target_time_s',
+                        'bp_time',
+                        'flux_time',
+                        'phase_time',
+                        'pol_time',
+                        'check_time',
+                        'target_time',
                         'target_name',
-                        'target_time_tot_s',
-                        'ntarget'])
-    
+                        'target_time_tot',
+                        'ntarget',
+                        'time_tot',
+                        'cal_time'])
+
+
     return tout
-    
+
     
 def calc_nchan_max_points_per_fov(cube_limit, points_per_fov, pixels_per_beam=25.0, nbin=1.0, chan_limit = 7680.0,frac_fov=1.0):
     '''
@@ -614,9 +709,15 @@ def calc_nchan_max(imsize, cube_limit, chan_limit=80*14880):
 
 def calc_cube_size(imsize, nchan):
 
-    cube_size = 4.0 * imsize**2 * nchan /1.0e9
+    cube_size = 4.0 * imsize**2 * nchan /1.0e9 * u.GB
 
     return cube_size
+
+def calc_mfs_size(imsize):
+
+    mfs_size = 4.0 * imsize**2 /1.0e9 * u.GB
+
+    return mfs_size
 
 
 def mem_per_plane(ims):
@@ -1457,3 +1558,4 @@ def make_velocity_bar(result,
 
     return count_arr
                       
+
