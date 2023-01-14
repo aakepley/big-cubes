@@ -51,6 +51,7 @@ def create_database(cycle7tab):
     # overall info
     if_mous_list = []
     proposal_id_list = []
+    schedblock_name_list = []
     array_list = []
 
     # basic observing info
@@ -147,6 +148,10 @@ def create_database(cycle7tab):
             # proposal id 
             proposal_id = np.unique(cycle7tab[idx]['proposal_id'])
             proposal_id_list.append(proposal_id)
+
+            # scheduling block info
+            schedblock_name = np.unique(cycle7tab[idx]['schedblock_name'])
+            schedblock_name_list.append(schedblock_name)
             
             # array info
             array_list.append(array)
@@ -382,7 +387,7 @@ def create_database(cycle7tab):
     #ipdb.set_trace()
     
     # put together table
-    if_mous_tab = QTable([np.squeeze(if_mous_list), np.squeeze(proposal_id_list), np.squeeze(array_list), 
+    if_mous_tab = QTable([np.squeeze(if_mous_list), np.squeeze(proposal_id_list), np.squeeze(schedblock_name_list),np.squeeze(array_list), 
                           np.squeeze(nant_typical_list), np.squeeze(nant_array_list), np.squeeze(nant_all_list), 
                           np.squeeze(band_list_array), np.squeeze(ntarget_list), np.squeeze(target_name_list),
                           np.squeeze(s_fov_list), np.squeeze(s_resolution_list), np.squeeze(mosaic_list),
@@ -397,7 +402,7 @@ def create_database(cycle7tab):
                           np.squeeze(wsu_specwidth_stepped), np.squeeze(wsu_chanavg_stepped), np.squeeze(wsu_velres_stepped),
                           np.squeeze(wsu_specwidth_stepped2), np.squeeze(wsu_chanavg_stepped2), np.squeeze(wsu_velres_stepped2),
                           np.squeeze(wsu_tint_list)],
-                         names=('mous','proposal_id','array',
+                         names=('mous','proposal_id','schedblock_name','array',
                                 'nant_typical','nant_array','nant_all',
                                 'band','ntarget','target_name',
                                 's_fov','s_resolution','mosaic',
@@ -462,14 +467,32 @@ def create_database(cycle7tab):
     # --------------------------------------------    
 
     for myarray in ['typical','array','all']:
-        if_mous_tab['nbase_'+myarray] = if_mous_tab['nant_'+myarray] * (if_mous_tab['nant_'+myarray] -1 )/2.0
-
-    ## TODO: I have a function to do this
-    ## calculate cube sizes and total data sizes??
-    
+        if_mous_tab['nbase_'+myarray] = if_mous_tab['nant_'+myarray] * (if_mous_tab['nant_'+myarray] -1 )/2.0    
         
     return if_mous_tab
 
+
+def add_blc_ntunings(orig_db, ntune_file):
+    '''
+    Purpose: add number of BLC tunings to data base
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    1/13/2023   A.A. Kepely     Original Code
+    '''
+
+    ntune_db = Table.read(ntune_file)
+
+    ### START HERE
+    
+    # TO DO:
+    ## create ntuning column filled with ones
+    ## go through each line of ntune db
+    ## see if there is a match in the orig_db
+    ## set ntuning value to value in orig_db
+    ## check to make sure that ntuning * nspws in file is equal to number of spws in data base.
+    
+    
 
 def add_l80(orig_db,l80_file=None):
     '''
@@ -489,9 +512,11 @@ def add_l80(orig_db,l80_file=None):
     l80_tab.rename_column('Member ous id','mous')
     l80_tab.rename_column('L80 BL','L80')
     l80_tab.rename_column('ALMA source name','target_name')
-
+    
     new_db = join(orig_db,l80_tab,keys=('mous','target_name'),join_type='left')
     new_db['L80'].unit = u.m
+    new_db.remove_column('Project code')
+    new_db.remove_column('Array')
 
     return new_db
 
@@ -509,7 +534,7 @@ def add_blc_tint(orig_db, breakpt_12m=3000.0 * u.m):
     # default tint values
     tint_7m = 10.1 #s
     tint_12m_short = 6.05 #s
-    tint_12m_long = 2.02 #s ## also see values of 3.02s for some projects
+    tint_12m_long = 3.024 #s ## Matches IST data rate memo assumptions. also see values of 2.02 for some projects. 
     
     orig_db['blc_tint'] = np.ones(len(orig_db)) * u.s
 
@@ -819,8 +844,13 @@ def join_wsu_and_mit_dbs(mous_db,mit_db):
     1/11/2023   A.A. Kepley     Original Code
     '''
 
-    mous_mit_db = join(mous_db,mit_db)
+    # calculate calibration time
+    mit_db['caltime'] = mit_db['totaltime'] - mit_db['imgtime']
+    
+    mous_mit_db = join(mous_db,mit_db, join_type='left')
 
+    # convert to masked table
+    mous_mit_db = Table(mous_mit_db, masked=True)
     
     # remove columns related to self-cal
     for mykey in ['webpredrms','webcontrms','webcontBW','webfreq',
@@ -836,11 +866,11 @@ def join_wsu_and_mit_dbs(mous_db,mit_db):
     
     # remove column that is wrong (bug in pipeline code)
     mous_mit_db.remove_column('prodsizeaftercube')
-
+    
     # add units to data from mitigated db
-    for mykey in ['totaltime','imgtime','cubetime','aggtime','fctime']:
+    for mykey in ['totaltime','imgtime','cubetime','aggtime','fctime','caltime']:
         mous_mit_db[mykey].unit = u.hr
-
+        
     for mykey in ['allowedcubesize','allowedcubelimit','predcubesize','mitigatedcubesize',
                   'allowedprodsize','initialprodsize','mitigatedprodsize']:
         mous_mit_db[mykey].unit = u.GB
@@ -850,10 +880,8 @@ def join_wsu_and_mit_dbs(mous_db,mit_db):
     mous_mit_db['mitigated'][idx] = False
 
     # change column names to clearly indicate that they are pl times
-    for mykey in ['totaltime','imgtime','cubetime','aggtime','fctime']:
+    for mykey in ['totaltime','imgtime','cubetime','aggtime','fctime','caltime']:
         mous_mit_db.rename_column(mykey,'pl_'+mykey)
 
-    # calculate calibration time
-    mous_mit_db['pl_caltime'] = mous_mit_db['pl_totaltime'] - mous_mit_db['pl_imgtime']
-        
+
     return mous_mit_db

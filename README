@@ -3,8 +3,8 @@ Order for excecuting these files:
 Jupyter notebooks:
 * large_cube_Search_v2
 * WSU_size_of_computing_numbers_database
-* WSU_size_of_computing_numbers_UseCasePlots
-* WSU_size_of_computing_numbers_CrystalPlots
+* WSU_size_of_computing_numbers_UseCasePlots (needs to be updated)
+* WSU_size_of_computing_numbers_CrystalPlots (needs to be updated)
 
 
 Associated code:
@@ -14,4 +14,213 @@ Associated code:
 Associated data:
 * archive_query_results_*.csv -- results from archive query
 * result_table_*_with_calc_values* -- archive query with calculated values for nchan, imsize, and points_per_fov
-* cycle?_wsu_*.fits -- WSU estimates based on cycle n of ALMA
+* cycle?wsu_ -- WSU estimates based on cycle n of ALMA
+* wsu_datarates_mit_per_mous_cycle* -- above plus data rates, current pipeline run time, and mitigation information per mous
+* wsu_datarates_per_moussrc_cycle* -- wsu estimates plus data rates per mous/src (no pipeline runtime information or mitigation information).
+
+-------
+
+Thanks:
+
+* Gathering the data for these estimates was an complex endeavor made more difficult by the cyber-attack in Fall 2022. Thanks to the many people that helped source data including Felix Stoehr, Ignacio Toledo, Andy Lipnicky, Remy Indebetouw, and Richard Simon. This project also used the public ALMA archive interface and astroquery extensively.  A huge thanks to the ALMA archive group for developing such a useful product and to astropy for astroquery.
+
+* Also a huge thanks to Crystal Brogan for extensive chats about WSU capabilities and to Thodori Nakos for hosting me at JAO when portions of this work was done.
+
+--------------------------
+
+General conventions:
+-- blc_* -- current values produced by the ALMA baseline correlator (for 12m) or ACA correlator (for 7m)
+-- wsu_* -- estimated WSU values
+-- wsu_*early* -- correlator upgraded to 2x bandwidth, but only Bands 6, 8, 9, and 10 capable to producing 16GHz total BW
+-- wsu_*later_2x* -- correlator upgraded to 2x bandwidth and all bands upgraded
+-- wsu_*later_4x* -- correlator upgraded to 4x bandwidth and all bands upgraded
+
+Key equations:
+ cubesize = 4.0 * imsize**2 * nchan / 1.0e9 # GB
+ mfssize = 4.0 * imsize**2 /1e9 # GB
+ productsize = 2.0 * (cubesize + mfssize) * nspws
+
+ Output Data Rate = (( 2 Nbyte x Napc x Nant(Nant-1)/2 + 4 Nant ) x Nchannels x Npols) / Tintegration
+    Nbyte = 2 for cross-corrs (16-bit) and Nbyte = 4 for autocorrs (32-bit) -- assume Nbyte = 2
+    Napc = number of WVR streams = 1
+    Nant = number of antennas
+    Nchannels = number of channels = nspws * nchan_per_spw 
+    Npols = number of polarizations
+    Tintegration = visibility integration time = 3.024s for 12m and 10.08 for 7m
+    
+ Number of visibilities (same definition as ngVLA SoC memo):
+     Nbase =  Nant * (Nant-1.0)/2.0
+     visrate = (2.0 * Npols * Nbase * Nchannels /1e9) / (Tintegration.to(u.hr)) # GVis/Hr
+
+Notes:
+ * Data rates, volumes etc have only been calculated for the stepped 2 velocity resolution assumption and a typical number of antennas to make the resulting data file more manageable. These values can be calculated for the other assumptions here if necessary. There are functions to calculate these in wsu_db.py.
+ 
+
+---------------------------
+
+wsu_data_rates* file columns:
+
+    # project info
+    'mous', # MOUS
+    'proposal_id', #proposal array
+    'array', # 12m or 7m array
+    'nant_typical', # typical number of antennas in array
+    'nant_array', # all possible antennas in the array
+    'nant_all', # if 12m = 12m+7m+TP or if 7m = 7m+TP
+    'band', # band name
+    'ntarget', # number of targets
+    'target_name', # science target name -- only in per mous/src data base
+
+    # image info
+    's_fov', # field of view from archive query
+    's_resolution', # resolution
+    'mosaic', # T = mosaic, F = single field
+    'imsize', # estimated image size that would be produced without any mitigation
+    'pb', # primary beam size
+    'cell', # cell size
+    
+     # original BLC info
+    'blc_npol', # number of polarization observed originally
+    'blc_nspw', # number of spectral windows observed originally
+    'blc_specwidth', # minimum spectral resolution over all windows
+    'blc_freq', # average frequency of all spectral windows
+    'blc_velres', # velocity resolution corresponding to minimum spectral resolution
+    'blc_nchan_agg', # total number of channels summed over all windows
+    'blc_nchan_max', # maximum number of channels in a single window
+    'blc_bandwidth_max', # bandwidth of widest bandwidth window
+    'blc_bandwidth_agg', #aggregate bandwidth summed over all windows -- does NOT take into account overlap
+
+    # estimated WSU info
+    'wsu_freq', # center frequency of WSU
+    'wsu_npol', # number of WSU polarizations = number of BLC polarization, except blc_npol = 1 -> wsu_npol = 2
+    'wsu_bandwidth_early', # early WSU bandwidth
+    'wsu_bandwidth_later_2x', # later WSU -- 2x bandwidth
+    'wsu_bandwidth_later_4x', # later WSU -- 4x bandwidth
+    'wsu_bandwidth_spw', # WSU bandwidth per spectral window
+    'wsu_nspw_early', # number of WSU spectral windows -- early
+    'wsu_nspw_later_2x', # number of WSU spectral windows -- later 2x bandwidth
+    'wsu_nspw_later_4x', # number of WSU spectral windows -- later 4x bandwidth
+    'wsu_specwidth_finest', # WSU spectral resolution based on finest current BLC spectral resolution used in the original project -- scenario 1 in IST data rate memo
+     'wsu_chanavg_finest', # number of WSU channels that would be averaged to produce this resolution.
+     'wsu_velres_finest', # corresponding velocity resolution
+     'wsu_specwidth_stepped',# WSU spectral resolution based on converting the original requested spectral resolution to a probable WSU resolution -- scenario 2 in IST data rate memo. >10km/s -> 10km/s, 1-10 km/s -> 1km/s, 0.1-1 km/s -> 0.1 km/s, <0.1km/s = 0.1
+     'wsu_chanavg_stepped', # number of WSU channels that would be averaged to produce this resolution.
+     'wsu_velres_stepped', # corresponding velocity resolution
+     'wsu_specwidth_stepped2', #  WSU spectral resolution based on converting the original requested spectral resolution to a probable WSU resolution -- variant on scenario 2 in IST data rate memo. >10km/s -> 10km/s, 2-10 km/s -> 2km/s, 0.5-2 km/s -> 0.5km/s,  0.1-0.5 km/s -> 0.1 km/s, <0.1km/s = velres. Breakpoints selected because band 6 widest bandwidth has a spectral resolution of 1.3km/s and those users likely traded off worse spectral resolution for wider bandwidth.
+     'wsu_chanavg_stepped2', # number of WSU channels that would be averaged to produce this resolution.
+     'wsu_velres_stepped2',# corresponding velocity resolution
+     'wsu_tint', # integration time assumed for WSU 
+     'wsu_nchan_spw_finest', # number of  channels per spectral window using "finest" assumption (scenario 1 in IST data rate memo)
+     'wsu_nchan_spw_stepped', # number of channels per spectral window using "stepped" assumption (scenario 2 in IST data rate memo)
+     'wsu_nchan_spw_stepped2', # number of channels per spectral windos using "stepped2" assumption (variant on scenario 2 in IST data rate memo)
+     'wsu_frac_bw_early', # WSU fractional aggregate bandwidth  -- early 
+     'wsu_frac_bw_later_2x', # WSU fractional aggregate bandwidth -- later - 2x bandwidth
+     'wsu_frac_bw_later_4x', # WSU fractional aggregate bandwidth -- later - 4x bandwidth
+     'wsu_frac_bw_spw', # WSU fraction bandwidth per spw 
+
+     # baseline information
+     'nbase_typical', # number of baselines for typical number of antennas
+     'nbase_array', # number of baselines for all antennas in array
+     'nbase_all', # number of baselines for all antennas
+     'L80', # 80th percentile baseline
+     'blc_tint', # estimated baseline correlator integration time. if L80 > 3 km = 3.024s, else 6.05s 
+    
+      # tos for observations
+     'bp_time', # time spent doing bandpass calibration per mous
+     'flux_time', # time spent doing flux calibration per mous. If a separate flux calibrator was not observed, this will be 0
+     'phase_time', # time spent doing phase calibration per mous 
+     'pol_time', # time spent doing polarization calibration per mous. If no polarization calibration was done, this will be 0
+     'check_time', # time spent observing a check source per mous. If no check source was observed, this will be zero.
+     'target_time', # only present in per mous/src file. Time spent observing a single science target
+     'target_time_tot', # Time spent observing all science targets in a mous
+     'time_tot', # Total observing time per mous
+     'cal_time', # Total time spent doing calibration per mous
+
+     # image and cube size information (per spw)
+     'mfssize', # size of mfs image for single spectral window
+     'wsu_cubesize_stepped2', # WSU cube size for a single spectral window using the stepped2 assumption
+
+     # early WSU predictions
+     'wsu_productsize_early_stepped2', # Total WSU image product size (all cubes and mfs images) for early WSU using the stepped2 velocity resolution assumption
+     'wsu_datarate_early_stepped2_typical', # WSU data rate for early WSU using stepped2 velocity resolution assumption and a typical number of antennas
+     'wsu_visrate_early_stepped2_typical', # WSU visibility rate for early WSU using stepped2 velocity resolution assumption and a typical number of antennas
+     'wsu_datavol_early_stepped2_typical_target', # only present in per mous/src file. WSU data volume for a single science target for early WSU using stepped2 velocity resolution assumption and a typical number of antennas
+     'wsu_datavol_early_stepped2_typical_target_tot', # WSU data volume for all science targets in a mous for early WSU using a stepped 2 velocity resolution assumption and a typical number of antennas
+     'wsu_datavol_early_stepped2_typical_cal', # WSU data volume for all calibration in a mous for early WSU using a stepped 2 velocity resolution assumption and a typical number of antennas
+     'wsu_datavol_early_stepped2_typical_total', # WSU data volume for an entire MOUS for early WSU using a stepped 2 velocity resolution assumption and a typical number of antennas
+     'wsu_nvis_early_stepped2_typical_target', # only present in per mous/src file. WSU number of visibilities for a single science target in a mous for early WSU with a stepped 2 velocity resolution assumption and a typical number of antennas.
+     'wsu_nvis_early_stepped2_typical_target_tot', # WSU number of visibilities for all science targets in a mous for early WSU with a stepped 2 velocity resolution assumption and a typical number of antennas
+     'wsu_nvis_early_stepped2_typical_cal', # WSU number of visibilities for calibration in a mous for early WSU with a stepped 2 velocity resolution assumption and a typical number of antennas
+     'wsu_nvis_early_stepped2_typical_total', # WSU number of visibilities in a mous for early WSU with a stepped 2 velocity resolution assumption and a typical number of antennas
+ 
+     # later WSU (2x BW) predictions
+     'wsu_productsize_later_2x_stepped2', # Total WSU image product size (all cubes and mfs images) for later WSU (2x BW) using the stepped2 velocity resolution assumption
+     'wsu_datarate_later_2x_stepped2_typical',# WSU data rate for later WSU (2x BW) using stepped2 velocity resolution assumption and a typical number of antennas
+     'wsu_visrate_later_2x_stepped2_typical',  # WSU visibility rate for later WSU (2x BW) using stepped2 velocity resolution assumption and a typical number of antennas
+     'wsu_datavol_later_2x_stepped2_typical_target', # only present in per mous/src file. WSU data volume for a single science target for later WSU (2x BW) using stepped2 velocity resolution assumption and a typical number of antennas
+     'wsu_datavol_later_2x_stepped2_typical_target_tot',# WSU data volume for all science targets in a mous for later WSU (2x BW)  using a stepped 2 velocity resolution assumption and a typical number of antennas
+     'wsu_datavol_later_2x_stepped2_typical_cal', # WSU data volume for all calibration in a mous for later WSU (2x BW) using a stepped 2 velocity resolution assumption and a typical number of antennas
+     'wsu_datavol_later_2x_stepped2_typical_total', # WSU data volume for an entire MOUS for later WSU (2x BW) using a stepped 2 velocity resolution assumption and a typical number of antennas
+     'wsu_nvis_later_2x_stepped2_typical_target', # only present in per mous/src file. WSU number of visibilities for a single science target in a mous for later WSU (2x Bw) with a stepped 2 velocity resolution assumption and a typical number of antennas.
+     'wsu_nvis_later_2x_stepped2_typical_target_tot', # WSU number of visibilities for all science targets in a mous for later WSU (2x BW) with a stepped 2 velocity resolution assumption and a typical number of antennas
+     'wsu_nvis_later_2x_stepped2_typical_cal', # WSU number of visibilities for calibration in a mous for later WSU (2x BW) with a stepped 2 velocity resolution assumption and a typical number of antennas 
+     'wsu_nvis_later_2x_stepped2_typical_total', # WSU number of visibilities in a mous for later WSU (2x BW) with a stepped 2 velocity resolution assumption and a typical number of antennas
+
+     # later WSU (4x BW) predictions
+     'wsu_productsize_later_4x_stepped2',# Total WSU image product size (all cubes and mfs images) for later WSU (2x BW) using the stepped2 velocity resolution assumption
+     'wsu_datarate_later_4x_stepped2_typical',# WSU data rate for later WSU (2x BW) using stepped2 velocity resolution assumption and a typical number of antennas
+     'wsu_visrate_later_4x_stepped2_typical', # WSU visibility rate for later WSU (2x BW) using stepped2 velocity resolution assumption and a typical number of antennas
+     'wsu_datavol_later_4x_stepped2_typical_target', # only present in per mous/src file. WSU data volume for a single science target for later WSU (2x BW) using stepped2 velocity resolution assumption and a typical number of antennas
+     'wsu_datavol_later_4x_stepped2_typical_target_tot', # WSU data volume for all science targets in a mous for later WSU (2x BW)  using a stepped 2 velocity resolution assumption and a typical number of antennas
+     'wsu_datavol_later_4x_stepped2_typical_cal', # WSU data volume for all calibration in a mous for later WSU (2x BW) using a stepped 2 velocity resolution assumption and a typical number of antennas
+     'wsu_datavol_later_4x_stepped2_typical_total', # WSU data volume for an entire MOUS for later WSU (2x BW) using a stepped 2 velocity resolution assumption and a typical number of antennas
+     'wsu_nvis_later_4x_stepped2_typical_target', # only present in per mous/src file. WSU number of visibilities for a single science target in a mous for later WSU (2x Bw) with a stepped 2 velocity resolution assumption and a typical number of antennas.
+     'wsu_nvis_later_4x_stepped2_typical_target_tot', # WSU number of visibilities for all science targets in a mous for later WSU (2x BW) with a stepped 2 velocity resolution assumption and a typical number of antennas
+     'wsu_nvis_later_4x_stepped2_typical_cal', # WSU number of visibilities for calibration in a mous for later WSU (2x BW) with a stepped 2 velocity resolution assumption and a typical number of antennas 
+     'wsu_nvis_later_4x_stepped2_typical_total', # WSU number of visibilities in a mous for later WSU (2x BW) with a stepped 2 velocity resolution assumption and a typical number of antennas
+
+
+     # estimated BLC data rates
+     'blc_datarate_typical', # estimated BLC (or ACA) correlator data rate for a typical number of antennas
+     'blc_visrate_typical', # estimated BLC (or ACA) correlator visiblity rate for a typical number of antennas
+     'blc_datavol_typical_target', # only present in per mous/src file. estimated BLC (or ACA) correlator data volume for a single target in a mous for a typical number of antennas
+     'blc_datavol_typical_target_tot', # estimated BLC (or ACA) correlator data volume for all science targets in a mous
+     'blc_datavol_typical_cal', # estimated BLC (or ACA) correlator data volume for calibration  targets in a mous
+     'blc_datavol_typical_total', # estimated BLC (or ACA) correlator data volume for all data in a mous
+     'blc_nvis_typical_target', # only present in per mous/src file. estimated BLC (or ACA) correlator number of visibilities for a single target and a typical number of antennas.
+     'blc_nvis_typical_target_tot', # estimated BLC (or ACA) correlator number of visibilities for all science targets in a mous and a typical number of antennas.
+     'blc_nvis_typical_cal', # estimated BLC (or ACA) correlator number of visibilities for calibration targets in a mous and a typical number of antennas.
+     'blc_nvis_typical_total' # estimated BLC (or ACA) correlator number of visibilities for all data in a mous and a typical number of antennas.
+     
+    # The information below was scrapped from the cycle 7 and 8 weblogs and is only available for the per mous data base. If a pipeline run is not available for a project this information will not be present.
+     
+    # Current pipeline information -- only available for per mous data base
+    'plversion', # pipeline version
+    'procedure', # recipe (calimage etc)
+    'nant', # number of antennas used for observing
+    'pl_totaltime', # total pipeline run time
+    'pl_imgtime', # total pipeline imaging time
+    'pl_cubetime', # pipeline cube imaging time
+    'pl_aggtime', # pipeline aggregate continuum imaging time
+    'pl_fctime', # pipeline find continuum time
+    'pl_caltime' # pipeline calibration time
+    'nEB', # number of observed EBs
+    'npt', # number of pointings
+    'nscan', # number of scans
+    'reptgt', # representative target
+    
+  # check productsize info -- only available for per mous data base
+    'allowedcubesize', #  cube size mitigation threshold
+     'allowedcubelimit', # maximum allowed cube size
+     'predcubesize', # predicted cube size
+     'mitigatedcubesize', # mitigated cube size
+     'allowedprodsize', # maximum allowed product size
+     'initialprodsize', # initial product size
+     'mitigatedprodsize', # mitigated product size
+     'mitigated', # mitigated in pipeline?
+     'mit_nbins', # nbin mitigation information
+     'mit_hm_imsize', # imsize mitigation information
+     'mit_hm_cell', # cell size mitigation information
+     'mit_field', # number of fields mitigation information
+     'mit_spw', # number of spws mitigation information
+    
