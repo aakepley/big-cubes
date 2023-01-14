@@ -472,7 +472,7 @@ def create_database(cycle7tab):
     return if_mous_tab
 
 
-def add_blc_ntunings(orig_db, ntune_file):
+def add_blc_ntunings(orig_db, ntunings_file):
     '''
     Purpose: add number of BLC tunings to data base
 
@@ -481,19 +481,24 @@ def add_blc_ntunings(orig_db, ntune_file):
     1/13/2023   A.A. Kepely     Original Code
     '''
 
-    ntune_db = Table.read(ntune_file)
+    ntunings_db = Table.read(ntunings_file,encoding='utf-8-sig')
 
-    ### START HERE
-    
-    # TO DO:
-    ## create ntuning column filled with ones
-    ## go through each line of ntune db
-    ## see if there is a match in the orig_db
-    ## set ntuning value to value in orig_db
-    ## check to make sure that ntuning * nspws in file is equal to number of spws in data base.
-    
-    
+    orig_db['blc_ntunings'] =  np.ones(len(orig_db))
 
+    match = False
+    
+    for line in ntunings_db:
+        idx = (line['proposal_id'] == orig_db['proposal_id']) & (line['sb_name'] == orig_db['schedblock_name'])
+
+        if np.any(idx):
+            print('Match found for ' + line['proposal_id']  + ', ' + line['sb_name'])
+            orig_db['blc_ntunings'][idx] = line['n_tunings']            
+            match = True
+
+    if not match:
+        print('No matches found. Are you using the right file')
+        
+        
 def add_l80(orig_db,l80_file=None):
     '''
     Purpose: add L80 to data base
@@ -624,6 +629,12 @@ def add_rates_to_db(mydb):
                 # calculate data rates and data volumes for the visibilities
                 calc_rates_for_db(mydb,array=array,correlator='wsu',stage=stage,velres=velres)                
 
+
+        # calculate cube sizes
+        mydb['blc_cubesize'] = calc_cube_size(mydb['imsize'], mydb['blc_nchan_max'])
+        mydb['blc_cubesize_sum'] = calc_cube_size(mydb['imsize'], mydb['blc_nchan_agg'])
+        mydb['blc_productsize'] = 2.0 * (mydb['blc_cubesize_sum'] + mydb['mfssize']  * mydb['blc_nspw'])
+        
         # calculate BLC correlator values
         calc_rates_for_db(mydb,array=array,correlator='blc',stage='',velres='')
                 
@@ -648,9 +659,14 @@ def calc_rates_for_db(mydb, array='typical',correlator='wsu',stage='early', velr
         Nchan_per_spw = mydb[correlator+'_nchan_spw_'+velres]
         Nchannels = Nspws * Nchan_per_spw
         mylabel = stage+'_'+velres+'_'+array
-    else:
-        Nchannels = mydb[correlator+'_nchan_agg']
+    elif correlator == 'blc':
+        # use aggregate number of channels. Need to divide by number of tunings to take care of spectral
+        # scan case.
+        Nchannels = mydb[correlator+'_nchan_agg'] /  mydb[correlator+'_ntunings']
         mylabel = array
+    else:
+        print('Correlator name not found: ' + correlator)
+                                        
         
     Tintegration = mydb[correlator+'_tint']
 
@@ -659,8 +675,8 @@ def calc_rates_for_db(mydb, array='typical',correlator='wsu',stage='early', velr
     mydb[correlator+'_datarate_'+mylabel] = calc_datarate(Nbyte, Napc, Nant, Nchannels, Npols, Tintegration) #GB/s
     mydb[correlator+'_visrate_'+mylabel] = calc_visrate(Nant, Npols, Nchannels, Tintegration)  #Gvis/hr
 
-    mydb[correlator+'_datavol_'+mylabel+'_target'] = mydb[correlator+'_datarate_'+mylabel] * mydb['target_time'] # GB/s * s = GB
-    mydb[correlator+'_datavol_'+mylabel+'_target_tot'] = mydb[correlator+'_datarate_'+mylabel] * mydb['target_time_tot'] # GB/s * s = GB
+    mydb[correlator+'_datavol_'+mylabel+'_target'] = mydb[correlator+'_datarate_'+mylabel] * mydb['target_time']  # GB/s * s = GB
+    mydb[correlator+'_datavol_'+mylabel+'_target_tot'] = mydb[correlator+'_datarate_'+mylabel] * mydb['target_time_tot']  # GB/s * s = GB
 
     mydb[correlator+'_datavol_'+mylabel+'_cal'] = mydb[correlator+'_datarate_'+mylabel] * mydb['cal_time'] # GB/s * s = GB
     mydb[correlator+'_datavol_'+mylabel+'_total'] = mydb[correlator+'_datarate_'+mylabel] * mydb['time_tot'] # GB/s * s = GB
@@ -675,6 +691,7 @@ def calc_rates_for_db(mydb, array='typical',correlator='wsu',stage='early', velr
 def calc_datarate(Nbyte, Napc, Nant, Nchannels, Npols, Tintegration):
     '''
     Purpose: calculate data rate based on the following equation:
+
 
     Output Data Rate = (( 2 Nbyte x Napc x Nant(Nant-1)/2 + 4 Nant ) x Nchannels x Npols) / Tintegration
 

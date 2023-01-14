@@ -55,6 +55,9 @@ Key equations:
 Notes:
  * Data rates, volumes etc have only been calculated for the stepped 2 velocity resolution assumption and a typical number of antennas to make the resulting data file more manageable. These values can be calculated for the other assumptions here if necessary. There are functions to calculate these in wsu_db.py.
  
+ * For current BLC spectral scans, the number of spectral windows reported is the total number of spectral windows across the entire scan. Divide by the number of tunings to get the number of spectral windows per tuning.
+ 
+ * Bands 1 and 2 are the most challenging bands in terms of data rate and are NOT included in these estimates (because we don't have any observations in cycle 7 and 8 for these bands). The maximum data rate estimates for WSU will be underestimates.
 
 ---------------------------
 
@@ -63,6 +66,7 @@ wsu_data_rates* file columns:
     # project info
     'mous', # MOUS
     'proposal_id', #proposal array
+    'schedblock_name', # scheduling block name
     'array', # 12m or 7m array
     'nant_typical', # typical number of antennas in array
     'nant_array', # all possible antennas in the array
@@ -85,10 +89,11 @@ wsu_data_rates* file columns:
     'blc_specwidth', # minimum spectral resolution over all windows
     'blc_freq', # average frequency of all spectral windows
     'blc_velres', # velocity resolution corresponding to minimum spectral resolution
-    'blc_nchan_agg', # total number of channels summed over all windows
+    'blc_nchan_agg', # total number of channels summed over all windows.  For spectral scans, it is the total number of channels across all tunings.
     'blc_nchan_max', # maximum number of channels in a single window
     'blc_bandwidth_max', # bandwidth of widest bandwidth window
-    'blc_bandwidth_agg', #aggregate bandwidth summed over all windows -- does NOT take into account overlap
+    'blc_bandwidth_agg', #aggregate bandwidth summed over all windows. Does NOT take into account overlap. For spectral scans, it is the bandwidth across all tunings.
+    'blc_ntunings', # number of tunings. > 1 = Spectral Scan. 
 
     # estimated WSU info
     'wsu_freq', # center frequency of WSU
@@ -181,8 +186,8 @@ wsu_data_rates* file columns:
 
 
      # estimated BLC data rates
-     'blc_datarate_typical', # estimated BLC (or ACA) correlator data rate for a typical number of antennas
-     'blc_visrate_typical', # estimated BLC (or ACA) correlator visiblity rate for a typical number of antennas
+     'blc_datarate_typical', # estimated BLC (or ACA) correlator data rate for a typical number of antennas. Takes into account number of tunings for spectral scans.
+     'blc_visrate_typical', # estimated BLC (or ACA) correlator visiblity rate for a typical number of antennas. Takes into account number of tunings for spectral scans.
      'blc_datavol_typical_target', # only present in per mous/src file. estimated BLC (or ACA) correlator data volume for a single target in a mous for a typical number of antennas
      'blc_datavol_typical_target_tot', # estimated BLC (or ACA) correlator data volume for all science targets in a mous
      'blc_datavol_typical_cal', # estimated BLC (or ACA) correlator data volume for calibration  targets in a mous
@@ -191,6 +196,9 @@ wsu_data_rates* file columns:
      'blc_nvis_typical_target_tot', # estimated BLC (or ACA) correlator number of visibilities for all science targets in a mous and a typical number of antennas.
      'blc_nvis_typical_cal', # estimated BLC (or ACA) correlator number of visibilities for calibration targets in a mous and a typical number of antennas.
      'blc_nvis_typical_total' # estimated BLC (or ACA) correlator number of visibilities for all data in a mous and a typical number of antennas.
+      'blc_cubesize', # estimated largest cube size for BLC (or ACA) correlator
+     'blc_cubesize_sum', # estimated sum of all cubes for BLC (or ACA) correlator
+     'blc_productsize', # estimated productsize for mfs and cube images for BLC (or ACA) correlator
      
     # The information below was scrapped from the cycle 7 and 8 weblogs and is only available for the per mous data base. If a pipeline run is not available for a project this information will not be present.
      
