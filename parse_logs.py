@@ -4,7 +4,7 @@ import os
 import sys
 import re
 import numpy as np
-import pdb
+import ipdb
 
 
 
@@ -14,39 +14,77 @@ def parse_pipe_casalog(logfile):
 
     Notes:
     -- tricky bit is going to be the calibrator imaging, which is parallelized at the pipeline
-    level. How to keep try? mpi server number? Easiest way is just to used the line that is printed right before the end of the task. that gives thte total timing information and there should okay be one.
+    level. How to keep try? mpi server number? Easiest way is just to used the line that is printed right before the end of the task. that gives thte total timing information and there should okay be one. But it will give the timing for everything not just the single node.
 
-    -- Need to add in toolkit calls as well: string to key off of: If you want to ask Felipe to extract casatools.imager.advise that would be good.  The pipeline prints “CASA tool call took 17.187121s” for each call so it should be easy.
+    Clue that mpi processing in casa log:
+    ## 2022-10-05 20:20:36	INFO	hif_makeimlist::::casa	setupCluster, Setting up 7 engines
+    ## or look for tclean(intent='CALIBRATE*') before. That can get us the source or not.
+    ## or MPIServer-# with the time message. I think for regular cleans this message is issued directly. Yep, it does.
 
-    -- Need to figure out when the pipeline start time is. 
-     
+    ## for plotms
+    ## Compressed 4 plotms jobs to 4 jobs
+    ## Executing Tier0JobRequest(
+
+    ## or just count by stage??
+    
+    -- Need to add in toolkit calls as well: string to key off of: If you want to ask Felipe to extract casatools.imager.advise that would be good.  The pipeline prints “CASA tool call took 17.187121s” for each call so it should be easy. Yep it was.
+
+    -- Need to figure out when the pipeline start time is. first and last line of log? Or some other marker?
+
+                Starting execution for stage 1
+                Saving final weblog
+
+    -- The pipeline marks each stage with the message: "Starting execution for stage 27", etc. so I can at least break at stage boundaries. On the next line they have:    Equivalent CASA call: hif_makeimages(pipelinemode="automatic"). With this information I could even name the stages.
+
+
+    -- uvcontfit won't be in the casa tasks description.
+
+    -- If I really wanted to get fancy, I could do the stats per stage.
+
+    
+    
+
     Date        Programmer      Description of Changes
     ----------------------------------------------------------------------
     1/17/2023   A.A. Kepley     Original Code
 
     '''
 
+    ## TODO:
+    ## ADD RE FOR PIPELINE BEGIN AND END
+    
     # key off of task time report right before End Task message in CASA
     taskTimeRE = re.compile(r"Task (?P<taskname>\w+) complete. Start time: (?P<startTime>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}) End time: (?P<endTime>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6})" )
 
-    #toolTimeRE = re.compile(r"CASA tool call took (?P<tooltime>.*?)s")
+    # MPI server
+    mpiRE = re.compile(r"MPIServer-")
+
+    # tool time call
     toolTimeRE = re.compile(r"(?P<toolname>\w+\.\w+\.\w+)\(.*?\) CASA tool call took (?P<tooltime>.*?)s")
-    
+
+    # date format -- I don't think I'm using this.
     dateFmtRE = re.compile(r"(?P<timedate>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
 
+    # open file
     if logfile.endswith('.gz'):
         filein = gzip.open(logfile,mode='rb')
     else:
         filein = open(logfile, 'rb')
 
+    # initialize values
     results = {}
     startTime = 0
     endTime = 0
+    calresults = {}
 
+    # parse log
     for line in filein:
 
         line = line.decode('utf-8')
 
+        ## TODO: deal properly with tier0 parallelization
+        #### if ## compressed plotms jobs or setupCluster, then zero out calresults. and maybe change the name to MPI
+        
         # is it a task?
         if taskTimeRE.search(line):
 
@@ -58,19 +96,41 @@ def parse_pipe_casalog(logfile):
             endTime = datetime.strptime(endTimeStr,  '%Y-%m-%d %H:%M:%S.%f')
 
             timeDiff = endTime - startTime
-            timeDiff = timeDiff.total_seconds()
+            timeDiff = timeDiff.total_seconds()                
 
-            # count up time spent on casatasks
-            if 'casatasks' in results.keys():
-                results['casatasks'] = timeDiff + results['casatasks']
-            else:
-                results['casatasks'] = timeDirr
+            # separate out the pipeline parallelized imaging case.
+            if mpiRE.search(line):
+                print(line)
+                
 
-            # count up time spent on individual casa tasks
-            if taskStr in results.keys():
-                results[taskStr] = timeDiff + results[taskStr]
+                if (taskStr in calresults.keys()):
+                    # the start time should be the earliest time
+                    newStartTime = min(calresults[taskStr]['startTime'],startTime)
+                    calresults[taskStr]['startTime'] = newStartTime
+
+                    # the end time should be the latest time
+                    newEndTime = max(calresults[taskStr]['endTime'],endTime)
+                    calresults[taskStr]['endTime'] = newEndTime
+
+                else:
+                    calresults[taskStr] = {}
+                    calresults[taskStr]['startTime'] = startTime
+                    calresults[taskStr]['endTime'] = endTime
+
+            # non-pipeline parallelized
             else:
-                results[taskStr] = timeDiff
+            
+                # count up time spent on casatasks
+                if 'casatasks' in results.keys():
+                    results['casatasks'] = timeDiff + results['casatasks']
+                else:
+                    results['casatasks'] = timeDiff
+
+                # count up time spent on individual casa tasks
+                if taskStr in results.keys():
+                    results[taskStr] = timeDiff + results[taskStr]
+                else:
+                    results[taskStr] = timeDiff
                 
         # is it a tool?
         elif toolTimeRE.search(line):
@@ -92,13 +152,23 @@ def parse_pipe_casalog(logfile):
 
         else:
             continue
+
+    # put cal results in library.
+    for mykey in calresults.keys():
+        print(mykey)
+        timeDiff = calresults[mykey]['endTime'] - calresults[mykey]['startTime']
+        timeDiff = timeDiff.total_seconds()        
+        results[mykey+'_cal'] = timeDiff
         
     return results
-                                        
+                                                        
 
-def parse_all_pipe_casalogs(logdir):
+def parse_all_pipe_casalogs(logdir,n=-1):
     '''
     Purpose: parse all weblogs in directory
+
+    Notes:
+    -- May want to add a testing parameter to just do first n. Or restart based on pickled results?
 
     Date        Programmer      Description of changes
     ----------------------------------------------------------------------
@@ -106,8 +176,27 @@ def parse_all_pipe_casalogs(logdir):
     '''
 
     import glob
+    from large_cubes import under_to_slash
 
+    allresults = {}
     
+    if os.path.exists(logdir):
+    
+        loglist = glob.glob(os.path.join(logdir,"member.*calimage*weblog.tgz","casa*.log*"))[0:n]
+
+        for mylog in loglist:
+
+            name = mylog.split('/')[-2]
+            mous = name.split('.')[1]
+            mous = under_to_slash(mous)
+
+            print("processing casa log for mous "+mous)
+            results = parse_pipe_casalog(mylog)
+            
+            allresults[mous] = results
+
+    return allresults
+
     
 
     
