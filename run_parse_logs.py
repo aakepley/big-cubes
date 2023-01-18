@@ -7,5 +7,5 @@ test = parse_logs.parse_pipe_casalog('/Users/akepley/Dropbox/Support/naasc/WSU/b
 
 cycle7_dir = '/Users/akepley/Dropbox/Support/naasc/WSU/big_cubes/data/felix_logfiles/Cycle7/logfiledirectory'
 
-result = parse_logs.parse_all_pipe_casalogs(cycle7_dir)
+result = parse_logs.parse_all_pipe_casalogs(cycle7_dir,n=10)
 
