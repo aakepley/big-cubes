@@ -27,11 +27,20 @@ def parse_pipe_casalog(logfile):
 
     '''
 
+    casaVersionRE = re.compile(r"CASA Version (?P<casaversion>.*)")
+
+    recipeRE = re.compile(r"Procedure name: (?P<recipename>\w+)")
+
     pipelineStartRE = re.compile(r"Starting procedure execution")
     pipelineEndRE = re.compile(r"Saving final weblog")
-    
+
     # key off of task time report right before End Task message in CASA
+    ## But this doesn't work in CASA 5.6.1
     taskTimeRE = re.compile(r"Task (?P<taskname>\w+) complete. Start time: (?P<startTime>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}) End time: (?P<endTime>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6})" )
+
+    # these will work for 5.6.1
+    beginTaskRE = re.compile(r'Begin Task: (?P<taskname>\w+)')
+    endTaskRE = re.compile(r'End Task: (?P<taskname>\w+)')
 
     # MPI server
     mpiRE = re.compile(r"MPIServer-")
@@ -41,13 +50,14 @@ def parse_pipe_casalog(logfile):
     
     # tclean Tier0
     tcleanTier0RE = re.compile(r"setupCluster, Setting up \d+ engines")
-
+    #tcleanTier0RE = re.compile(r"Executing Tier0PipelineTask") # will this work for both??NO
+    tcleanTier0_casa56RE = re.compile(r'Starting execution for stage 19')
     # uvcontfit
     uvcontfitStartRE = re.compile(r"Executing uvcontfit")
     uvcontfitEndRE = re.compile(r"Executing command \.\.\.hif_uvcontsub")
     
     # tool time call
-    toolTimeRE = re.compile(r"(?P<toolname>\w+\.\w+\.\w+)\(.*?\) CASA tool call took (?P<tooltime>.*?)s")
+    toolTimeRE = re.compile(r"(?P<toolname>\S+)\(.*?\) CASA tool call took (?P<tooltime>.*?)s")
 
     # ia.getprofile in fincont
     iagetprofileStartRE = re.compile(r"Running ia.getprofile")
@@ -66,26 +76,38 @@ def parse_pipe_casalog(logfile):
     startTime = 0
     endTime = 0
     mpiresults = {}
+    tmpresults = {}
 
-    pipeStartTimeStr = ''
-    
     # parse log
     for line in filein:
 
         line = line.decode('utf-8')
 
+        ## casa version
+        if 'casaversion' not in results.keys():
+            if casaVersionRE.search(line):
+                results['casaversion'] = casaVersionRE.search(line).group('casaversion')
+                results['casaversion'] = results['casaversion'].replace('PIPELINE','').strip()
+
+
+        ## recipe
+        if 'recipe' not in results.keys():
+            if recipeRE.search(line):
+                results['recipe'] = recipeRE.search(line).group('recipename')
+
         ## Pipeline start  -- only take first value
-        if (pipelineStartRE.search(line)) and (not bool(pipeStartTimeStr)):
-            pipeStartTimeStr = dateFmtRE.search(line).group('timedate')
-            pipeStartTime = datetime.strptime(pipeStartTimeStr,'%Y-%m-%d %H:%M:%S')
+        if 'pipeStartTime' not in results.keys():
+            if pipelineStartRE.search(line):
+                pipeStartTimeStr = dateFmtRE.search(line).group('timedate')
+                results['pipeStartTime'] = datetime.strptime(pipeStartTimeStr,'%Y-%m-%d %H:%M:%S')
 
         ## Pipeline end
         if pipelineEndRE.search(line):
             pipeEndTimeStr = dateFmtRE.search(line).group('timedate')
-            pipeEndTime = datetime.strptime(pipeEndTimeStr,'%Y-%m-%d %H:%M:%S')
+            results['pipeEndTime'] = datetime.strptime(pipeEndTimeStr,'%Y-%m-%d %H:%M:%S')
         
         ## figure out if we are starting tier0 parallelization
-        if (plotmsTier0RE.search(line) or tcleanTier0RE.search(line)):
+        if (plotmsTier0RE.search(line) or tcleanTier0RE.search(line) or tcleanTier0_casa56RE.search(line)):
 
             # save results so far
             for mykey in mpiresults.keys():
@@ -97,7 +119,7 @@ def parse_pipe_casalog(logfile):
                     results[mykey+'_mpi'] = results[mykey+'_mpi'] + timeDiff
                 else:
                     results[mykey+'_mpi'] = timeDiff
-
+                    
                 # add to total
                 if mykey in results.keys():
                     results[mykey] = results[mykey] + timeDiff
@@ -106,6 +128,7 @@ def parse_pipe_casalog(logfile):
             
             # reset mpiresults
             mpiresults = {}
+
 
         ## look for uvcontfit
         if uvcontfitStartRE.search(line):
@@ -158,55 +181,117 @@ def parse_pipe_casalog(logfile):
             else:
                 results['casatools'] = timeDiff
             
-            
-        # is it a task?
-        if taskTimeRE.search(line):
+        # process tasks        
+        if 'casaversion' in results.keys():
+            # process tasks without info line
+            if results['casaversion'] == '5.6.1-8':            
+                if beginTaskRE.search(line):
+                    taskStr = beginTaskRE.search(line).group('taskname')
+                    startTimeStr = dateFmtRE.search(line).group('timedate')
 
-            (taskStr,startTimeStr, endTimeStr) = taskTimeRE.search(line).groups()
-
-            startTime = datetime.strptime(startTimeStr,  '%Y-%m-%d %H:%M:%S.%f')
-            endTime = datetime.strptime(endTimeStr,  '%Y-%m-%d %H:%M:%S.%f')
-
-            timeDiff = endTime - startTime
-            timeDiff = timeDiff.total_seconds()                
-
-            # separate out the pipeline parallelized imaging case.
-            if mpiRE.search(line):
+                    startTime = datetime.strptime(startTimeStr, '%Y-%m-%d %H:%M:%S')
+                    
+                    if mpiRE.search(line):
+                        if taskStr in mpiresults.keys():
+                            newStartTime = min(mpiresults[taskStr]['startTime'],startTime)
+                            mpiresults[taskStr]['startTime'] = newStartTime
+                        else:
+                            mpiresults[taskStr] = {}
+                            mpiresults[taskStr]['startTime'] = startTime
+                    else:
+                        tmpresults[taskStr] = {}
+                        tmpresults[taskStr]['startTime'] = startTime
+                        
                 
-                if (taskStr in mpiresults.keys()):
-                    # the start time should be the earliest time
-                    newStartTime = min(mpiresults[taskStr]['startTime'],startTime)
-                    mpiresults[taskStr]['startTime'] = newStartTime
+                if endTaskRE.search(line):
+                    taskStr = endTaskRE.search(line).group('taskname')
+                    endTimeStr = dateFmtRE.search(line).group('timedate')
 
-                    # the end time should be the latest time
-                    newEndTime = max(mpiresults[taskStr]['endTime'],endTime)
-                    mpiresults[taskStr]['endTime'] = newEndTime
+                    endTime = datetime.strptime(endTimeStr, '%Y-%m-%d %H:%M:%S')
 
-                else:
-                    mpiresults[taskStr] = {}
-                    mpiresults[taskStr]['startTime'] = startTime
-                    mpiresults[taskStr]['endTime'] = endTime
+                    # if mpi find max time.
+                    if mpiRE.search(line):
+                        if taskStr in mpiresults.keys():
+                            if 'endTime' in mpiresults[taskStr].keys():
+                                newEndTime = max(mpiresults[taskStr]['endTime'],endTime)
+                                mpiresults[taskStr]['endTime'] = newEndTime
+                            else:
+                                mpiresults[taskStr]['endTime'] = endTime
+                        else:
+                            print("Start time but no end time. shouldn't happen")
 
-            # non-pipeline parallelized
-            else:
-            
-                # count up time spent on casatasks
-                if 'casatasks' in results.keys():
-                    results['casatasks'] = timeDiff + results['casatasks']
-                else:
-                    results['casatasks'] = timeDiff
+                    # other wise take the difference and save.
+                    else:
+                        tmpresults[taskStr]['endTime'] = endTime
 
-                # count up time spent on individual casa tasks
-                if taskStr in results.keys():
-                    results[taskStr] = timeDiff + results[taskStr]
-                else:
-                    results[taskStr] = timeDiff
+                        timeDiff = tmpresults[taskStr]['endTime'] - tmpresults[taskStr]['startTime']
+                        timeDiff = timeDiff.total_seconds()
+
+                        if 'casatasks' in results.keys():
+                            results['casatasks'] = timeDiff + results['casatasks']
+                        else:
+                            results['casatasks'] = timeDiff
+
+                        if taskStr in results.keys():
+                            results[taskStr] = timeDiff + results[taskStr]
+                        else:
+                            results[taskStr] = timeDiff
+                        
+                        # clear tmp results.
+                        tmpresults = {}
+                    
+            else: 
+                # process tasks with info line
+                if taskTimeRE.search(line):
+
+                    (taskStr,startTimeStr, endTimeStr) = taskTimeRE.search(line).groups()
+
+                    startTime = datetime.strptime(startTimeStr,  '%Y-%m-%d %H:%M:%S.%f')
+                    endTime = datetime.strptime(endTimeStr,  '%Y-%m-%d %H:%M:%S.%f')
+
+                    # separate out the pipeline parallelized imaging case.
+                    if mpiRE.search(line):
                 
+                        if (taskStr in mpiresults.keys()):
+                            # the start time should be the earliest time
+                            newStartTime = min(mpiresults[taskStr]['startTime'],startTime)
+                            mpiresults[taskStr]['startTime'] = newStartTime
+
+                            # the end time should be the latest time
+                            newEndTime = max(mpiresults[taskStr]['endTime'],endTime)
+                            mpiresults[taskStr]['endTime'] = newEndTime
+
+                        else:
+                            mpiresults[taskStr] = {}
+                            mpiresults[taskStr]['startTime'] = startTime
+                            mpiresults[taskStr]['endTime'] = endTime
+
+                    # non-pipeline parallelized
+                    else:
+
+                        timeDiff = endTime - startTime
+                        timeDiff = timeDiff.total_seconds()     
+            
+                        # count up time spent on casatasks
+                        if 'casatasks' in results.keys():
+                            results['casatasks'] = timeDiff + results['casatasks']
+                        else:
+                            results['casatasks'] = timeDiff
+
+                        # count up time spent on individual casa tasks
+                        if taskStr in results.keys():
+                            results[taskStr] = timeDiff + results[taskStr]
+                        else:
+                            results[taskStr] = timeDiff
+
         # is it a tool?
-        elif toolTimeRE.search(line):
+        if toolTimeRE.search(line):
             
             toolTime = float(toolTimeRE.search(line).group('tooltime'))
             toolName = toolTimeRE.search(line).group('toolname')
+
+            # unify tool names between 5.6.1 and 6.x series.
+            toolName = toolName.replace('casatools.','')
 
             # count up all time spent on casa tool calls
             if 'casatools' in results.keys():
@@ -219,14 +304,9 @@ def parse_pipe_casalog(logfile):
                 results[toolName] = toolTime + results[toolName]
             else:
                 results[toolName] = toolTime
-
-        else:
-            continue
-
-
-
+    
         
-    # put any remainig mpi results in library.
+    # put any remaining mpi results in library.
     for mykey in mpiresults.keys():
         timeDiff = mpiresults[mykey]['endTime'] - mpiresults[mykey]['startTime']
         timeDiff = timeDiff.total_seconds()        
@@ -244,7 +324,11 @@ def parse_pipe_casalog(logfile):
             results[mykey] = timeDiff
 
     # calculate total time spent on pipeline
-    results['pipetime'] = (pipeEndTime - pipeStartTime).total_seconds()
+    if ('pipeEndTime' in results.keys()) and ('pipeStartTime' in results.keys()):
+        results['pipetime'] = (results['pipeEndTime'] - results['pipeStartTime']).total_seconds()
+    else:
+        print("Mous is malformed setting results to empty.")
+        results = {} # set results to empty to indicate malformed mous
 
     # close input log
     filein.close()
@@ -272,7 +356,7 @@ def parse_all_pipe_casalogs(logdir,n=-1):
     
     if os.path.exists(logdir):
     
-        loglist = glob.glob(os.path.join(logdir,"member.*calimage*weblog.tgz","casa*.log*"))[0:n]
+        loglist = glob.glob(os.path.join(logdir,"member.*.hifa_calimage*weblog.tgz","casa*.log*"))[0:n]
 
         for mylog in loglist:
 
@@ -280,10 +364,14 @@ def parse_all_pipe_casalogs(logdir,n=-1):
             mous = name.split('.')[1]
             mous = under_to_slash(mous)
 
-            print("processing casa log for mous "+mous)
-            results = parse_pipe_casalog(mylog)
+            try:
+                print("processing casa log for mous "+mous)
+                results = parse_pipe_casalog(mylog)
+                allresults[mous] = results
+
+            except:
+                print('bad things have happened: '+ mous)
             
-            allresults[mous] = results
 
     return allresults
 
@@ -291,6 +379,6 @@ def parse_all_pipe_casalogs(logdir,n=-1):
 
     
 
-    
+ #   uid://A001/X14c3/Xaa1
 
   
