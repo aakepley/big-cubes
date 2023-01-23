@@ -847,6 +847,38 @@ def create_per_mous_db(mydb):
 
 
 
+
+
+''''
+# Code to fix up pandas data frame
+
+rpd = pd.DataFrame(result_pkl).transpose()
+mycols = ['importasdm','flagdata','listobs','plotms','clearstat',
+          'flagcmd','gencal','plotbandpass','wvrgcal','gaincal',
+          'bandpass','setjy','flagmanager','applycal','fluxscale',
+          'tclean','exportfits','mstransform','imhead','immoments',
+          'imstat','imsubimage','makemask','immath','uvcontfit','visstat',
+         'pipetime','casatasks','casatools','imager.selectvis','imager.advise',
+         'imager.apparentsens','ia.getprofile']
+
+mycols_dtype = {}
+for col in mycols:
+    mycols_dtype[col]  = 'float'
+
+rpd = rpd.astype(dtype=mycols_dtype)
+
+casa_cycle7 = Table.from_pandas(rpd)
+
+casa_cycle7 = Table(casa_cycle7,masked=True)
+casa_cycle7.filled(np.nan)
+
+## may have to fiddle with this to deal with integers.
+
+'''
+
+
+
+
 def join_wsu_and_mit_dbs(mous_db,mit_db):
     '''
     Purpose: join wsu and mit data bases removing columns that aren't needed and updating units as needed

@@ -1,9 +1,8 @@
-import gzip
-from datetime import datetime
 import os
 import sys
-import re
 import numpy as np
+import matplotlib.pyplot as plt
+from astropy.table import Table
 import ipdb
 
 
@@ -26,7 +25,10 @@ def parse_pipe_casalog(logfile):
     1/17/2023   A.A. Kepley     Original Code
 
     '''
-
+    import gzip
+    from datetime import datetime
+    import re
+    
     casaVersionRE = re.compile(r"CASA Version (?P<casaversion>.*)")
 
     recipeRE = re.compile(r"Procedure name: (?P<recipename>\w+)")
@@ -341,8 +343,9 @@ def parse_all_pipe_casalogs(logdir,n=-1):
     '''
     Purpose: parse all weblogs in directory
 
-    Notes:
-    -- May want to add a testing parameter to just do first n. Or restart based on pickled results?
+
+    TO DO: 
+    -- add a parameter to look for a particular recipe
 
     Date        Programmer      Description of changes
     ----------------------------------------------------------------------
@@ -375,10 +378,115 @@ def parse_all_pipe_casalogs(logdir,n=-1):
 
     return allresults
 
-    
+
+def plot_cal_img_time(mytab,plot_title='Cycle'):
+    '''
+    Purpose: Plot fraction of time spent on in calibration and imaging portions
+    of the pipeline
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    1/23/2023   A.A. Kepley     Original Code'
+    '''
+
+    # avoid divide by zero -- there has to be cleaner way to do this
+    mymask = ~mytab['pl_totaltime'].mask
+
+    frac_cal = mytab['pl_caltime'][mymask]/mytab['pl_totaltime'][mymask]
+    frac_imgtime = mytab['pl_imgtime'][mymask]/mytab['pl_totaltime'][mymask]
+    frac_cubetime = mytab['pl_cubetime'][mymask]/mytab['pl_totaltime'][mymask]
+    frac_aggtime = mytab['pl_aggtime'][mymask]/mytab['pl_totaltime'][mymask]
+    frac_fctime = mytab['pl_fctime'][mymask]/mytab['pl_totaltime'][mymask]
+
+    mylabels = ['Calibration','Imaging', 'Cubes',' Agg Cont','Findcont']
+
+    mydata = [frac_cal,frac_imgtime,frac_cubetime,frac_aggtime,frac_fctime]
+
+    fig, ax = plt.subplots(1,1,figsize=(8,6))
+
+    parts = ax.violinplot(mydata,showmedians=True)
+
+    ax.set_xticks(np.arange(1,len(mylabels)+1),labels=mylabels)
+    ax.set_title(plot_title)
+
+
+def plot_casa_time(mytab, plot_title='Cycle 7'):
+    '''
+    Purpose: Plot fraction of time spent on CASA in pipeline runs
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    1/23/2023   A.A. Kepley     Original Code
+    '''
+
 
     
+    frac_casa = (mytab['casatasks'] + mytab['casatools'])/mytab['pipetime']
+    frac_tasks = (mytab['casatasks'] / mytab['pipetime'])
+    frac_tools = (mytab['casatools'] /mytab['pipetime'])
+    
+    mylabels = ['CASA', 'Tasks', 'Tools']
+    
+    fig, ax = plt.subplots(1,1,figsize=(8,6))
 
- #   uid://A001/X14c3/Xaa1
+    parts = ax.violinplot([frac_casa,frac_tasks,frac_tools], showmedians=True)
 
-  
+    ## Can use parts to set colors
+    
+    ax.set_xticks(np.arange(1,len(mylabels)+1),labels=mylabels)
+    ax.set_title(plot_title)
+    
+
+
+def plot_casa_task_time(mytab, plot_title='Cycle 7'):
+    '''
+    Purpose: Plot fraction of time spent on different CASA tasks
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    1/23/2023   A.A. Kepley     Original Code
+    '''
+
+    mycols_tasks = ['importasdm','flagdata','listobs','plotms','clearstat','flagcmd','gencal','plotbandpass','wvrgcal','gaincal','bandpass','setjy','flagmanager','applycal','fluxscale','tclean','exportfits','mstransform','imhead','immoments','imstat','imsubimage','makemask','immath','uvcontfit','visstat']
+
+
+    mydata = []
+    for mycol in mycols_tasks:
+        mydata.append(mytab[mycol]/mytab['pipetime'])
+
+        
+    fig, ax = plt.subplots(1,1,figsize=(12,6))
+    parts = ax.violinplot(mydata,showmedians=True, widths=0.9)
+    
+    ax.set_xticks(np.arange(1,len(mycols_tasks)+1),labels=mycols_tasks,rotation=90)
+
+    ax.set_title(plot_title)
+    
+    
+def plot_casa_tool_time(mytab, plot_title='Cycle 7'):
+    '''
+    Purpose: Plot fraction of time spent on different CASA tasks
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    1/23/2023   A.A. Kepley     Original Code
+    '''
+
+    mycols_tasks = ['imager.selectvis','imager.advise','imager.apparentsens', 'ia.getprofile']
+
+
+    mydata = []
+    for mycol in mycols_tasks:
+        mydata.append(mytab[mycol]/mytab['pipetime'])
+
+        
+    fig, ax = plt.subplots(1,1,figsize=(8,6))
+    parts = ax.violinplot(mydata,showmedians=True, widths=0.5)
+    
+    ax.set_xticks(np.arange(1,len(mycols_tasks)+1),labels=mycols_tasks,rotation=90)
+
+    ax.set_title(plot_title)
+    
+
+
+
