@@ -846,37 +846,67 @@ def create_per_mous_db(mydb):
     return mous_db
 
 
+def get_pipeinfo(mypkl):
+    '''
+    Purpose: fix up pandas generated database to play nicely with
 
+    Inputs:
+      -- location of pickle file
 
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    1/24/2023   A.A. Kepley     Original Code
+    '''
 
-''''
-# Code to fix up pandas data frame
+    import pickle
+    import pandas as pd
+    from large_cubes import fix_mous_col
+    
+    # read in pickle
+    mit = pickle.load(open(mypkl,'rb'))
+    rpd = pd.DataFrame(mit).transpose()
 
-rpd = pd.DataFrame(result_pkl).transpose()
-mycols = ['importasdm','flagdata','listobs','plotms','clearstat',
-          'flagcmd','gencal','plotbandpass','wvrgcal','gaincal',
-          'bandpass','setjy','flagmanager','applycal','fluxscale',
-          'tclean','exportfits','mstransform','imhead','immoments',
-          'imstat','imsubimage','makemask','immath','uvcontfit','visstat',
-         'pipetime','casatasks','casatools','imager.selectvis','imager.advise',
-         'imager.apparentsens','ia.getprofile']
+    # set column values type
+    mycols_dtype = {}
 
-mycols_dtype = {}
-for col in mycols:
-    mycols_dtype[col]  = 'float'
+    myfloatcols = ['totaltime','imgtime','cubetime','aggtime','fctime',
+              'webpredrms','webcontrms','webcontBW','webfreq',
+              'webbm','webdirtyDR','webDRcorr','webcontpk','webfreqline',
+              'webbmline','webpredrmsline','webdirtyDRline','webDRcorrline',
+              'weblinerms','weblinepk','weblineBW','allowedcubesize',
+              'allowedcubelimit','predcubesize','mitigatedcubesize','allowedprodsize',
+              'initialprodsize','prodsizeaftercube','mitigatedprodsize']
+    for col in myfloatcols:
+        if col in rpd.columns:
+            mycols_dtype[col] = 'float'
 
-rpd = rpd.astype(dtype=mycols_dtype)
+    mycols = ['nant','nEB','npt','nscan','nscience','nspw']
+    for col in mycols:
+        if col in rpd.columns:
+            mycols_dtype[col] = 'int'        
+          
+    mycols = ['mitigated']
+    for col in mycols:
+        if col in rpd.columns:
+            mycols_dtype[col] = 'bool'
+    
+    rpd = rpd.astype(dtype=mycols_dtype)
 
-casa_cycle7 = Table.from_pandas(rpd)
+    # read into astropy    
+    mytab = Table.from_pandas(rpd,index=True)
+    mytab.rename_column('index','mous')
+    mytab = Table(mytab,masked=True)
 
-casa_cycle7 = Table(casa_cycle7,masked=True)
-casa_cycle7.filled(np.nan)
+    # fix up float columns
+    for col in mytab.columns:
+        if col in myfloatcols:
+            mytab.fill_value = np.nan
 
-## may have to fiddle with this to deal with integers.
+    # fix up mous names
+    fix_mous_col(mytab)
 
-'''
-
-
+    return mytab
+    
 
 
 def join_wsu_and_mit_dbs(mous_db,mit_db):
