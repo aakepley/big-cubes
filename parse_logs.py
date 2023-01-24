@@ -389,14 +389,13 @@ def plot_cal_img_time(mytab,plot_title='Cycle'):
     1/23/2023   A.A. Kepley     Original Code'
     '''
 
-    # avoid divide by zero -- there has to be cleaner way to do this
-    mymask = ~mytab['pl_totaltime'].mask
-
-    frac_cal = mytab['pl_caltime'][mymask]/mytab['pl_totaltime'][mymask]
-    frac_imgtime = mytab['pl_imgtime'][mymask]/mytab['pl_totaltime'][mymask]
-    frac_cubetime = mytab['pl_cubetime'][mymask]/mytab['pl_totaltime'][mymask]
-    frac_aggtime = mytab['pl_aggtime'][mymask]/mytab['pl_totaltime'][mymask]
-    frac_fctime = mytab['pl_fctime'][mymask]/mytab['pl_totaltime'][mymask]
+    idx = (mytab['procedure'] == 'hifa_caliamge') | (mytab['procedure'] == 'hifa_calimage_renorm')
+    
+    frac_cal = mytab['pl_caltime'][idx]/mytab['pl_totaltime'][idx]
+    frac_imgtime = mytab['pl_imgtime'][idx]/mytab['pl_totaltime'][idx]
+    frac_cubetime = mytab['pl_cubetime'][idx]/mytab['pl_totaltime'][idx]
+    frac_aggtime = mytab['pl_aggtime'][idx]/mytab['pl_totaltime'][idx]
+    frac_fctime = mytab['pl_fctime'][idx]/mytab['pl_totaltime'][idx]
 
     mylabels = ['Calibration','Imaging', 'Cubes',' Agg Cont','Findcont']
 
