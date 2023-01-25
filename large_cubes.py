@@ -1559,3 +1559,201 @@ def make_velocity_bar(result,
     return count_arr
                       
 
+def calc_wsu_stats(mydb,stage='early'):
+    '''
+    Purpose: calculate statistics for WSU Fidicual Properties
+
+    Output: dictionary
+    
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    1/25/2023   A.A. Kepley     Original code
+    
+    '''
+
+
+    mystats = {}
+    mystats['12m']  = {}
+    mystats['7m']  = {}
+
+    
+    for array in ['12m','7m']:
+        idx = mydb['array'] == array
+
+        mydb_arr = mydb[idx]
+
+        ## could probably do with some loops here.
+        
+        # getting data rates    
+        mystats[array]['wsu_datarate_min']  = np.min(mydb_arr['wsu_datarate_'+stage+'_stepped2_typical'])
+        mystats[array]['wsu_datarate_median']  = np.median(mydb_arr['wsu_datarate_'+stage+'_stepped2_typical'])
+        mystats[array]['wsu_datarate_max']  = np.max(mydb_arr['wsu_datarate_'+stage+'_stepped2_typical'])
+        # calculate weighted average -- weight by total observing time
+        mystats[array]['wsu_datarate_wavg']  = np.average(mydb_arr['wsu_datarate_'+stage+'_stepped2_typical'],
+                                                          weights=mydb_arr['time_tot'])
+
+        mystats[array]['blc_datarate_min'] = np.min(mydb_arr['blc_datarate_typical'])
+        mystats[array]['blc_datarate_median'] = np.median(mydb_arr['blc_datarate_typical'])
+        mystats[array]['blc_datarate_max'] = np.max(mydb_arr['blc_datarate_typical'])
+        mystats[array]['blc_datarate_wavg'] =  np.average(mydb_arr['blc_datarate_typical'],weights=mydb_arr['time_tot'])
+
+        # getting aggregate number of channels
+        mystats[array]['wsu_nchan_agg_min'] = np.min(mydb_arr['wsu_nchan_spw_stepped2'] * mydb_arr['wsu_nspw_'+stage])
+        mystats[array]['wsu_nchan_agg_median'] = np.median(mydb_arr['wsu_nchan_spw_stepped2'] * mydb_arr['wsu_nspw_'+stage])
+        mystats[array]['wsu_nchan_agg_max'] = np.max(mydb_arr['wsu_nchan_spw_stepped2'] * mydb_arr['wsu_nspw_'+stage])
+        mystats[array]['wsu_nchan_agg_wavg'] =  np.average(mydb_arr['wsu_nchan_spw_stepped2'] * mydb_arr['wsu_nspw_'+stage],
+                                                           weights=mydb_arr['time_tot'])
+
+        mystats[array]['blc_nchan_agg_min'] = np.min(mydb_arr['blc_nchan_agg'])
+        mystats[array]['blc_nchan_agg_median'] = np.median(mydb_arr['blc_nchan_agg'])
+        mystats[array]['blc_nchan_agg_max'] = np.max(mydb_arr['blc_nchan_agg'])
+        mystats[array]['blc_nchan_agg_wavg'] =  np.average(mydb_arr['blc_nchan_agg'],
+                                                           weights=mydb_arr['time_tot'])
+
+
+        # getting nchan max per spw
+        mystats[array]['wsu_nchan_spw_min'] = np.min(mydb_arr['wsu_nchan_spw_stepped2'])
+        mystats[array]['wsu_nchan_spw_median'] = np.median(mydb_arr['wsu_nchan_spw_stepped2'])
+        mystats[array]['wsu_nchan_spw_max'] = np.max(mydb_arr['wsu_nchan_spw_stepped2'])
+        mystats[array]['wsu_nchan_spw_wavg'] =  np.average(mydb_arr['wsu_nchan_spw_stepped2'],
+                                                           weights=mydb_arr['time_tot'])
+
+
+        mystats[array]['blc_nchan_spw_min'] = np.min(mydb_arr['blc_nchan_max'])
+        mystats[array]['blc_nchan_spw_median'] = np.median(mydb_arr['blc_nchan_max'])
+        mystats[array]['blc_nchan_spw_max'] = np.max(mydb_arr['blc_nchan_max'])
+        mystats[array]['blc_nchan_spw_wavg'] =  np.average(mydb_arr['blc_nchan_max'],
+                                                           weights=mydb_arr['time_tot'])
+
+
+        ## number of visibilities
+        mystats[array]['wsu_datavol_min'] = np.min(mydb_arr['wsu_datavol_'+stage+'_stepped2_typical_total'])
+        mystats[array]['wsu_datavol_median'] = np.median(mydb_arr['wsu_datavol_'+stage+'_stepped2_typical_total'])
+        mystats[array]['wsu_datavol_max'] = np.max(mydb_arr['wsu_datavol_'+stage+'_stepped2_typical_total'])
+        mystats[array]['wsu_datavol_wavg'] = np.average(mydb_arr['wsu_datavol_'+stage+'_stepped2_typical_total'],
+                                                              weights=mydb_arr['time_tot'])
+        mystats[array]['wsu_datavol_tot'] = np.sum(mydb_arr['wsu_datavol_'+stage+'_stepped2_typical_total'])
+
+
+        mystats[array]['blc_datavol_min'] = np.min(mydb_arr['blc_datavol_typical_total'])
+        mystats[array]['blc_datavol_median'] = np.median(mydb_arr['blc_datavol_typical_total'])
+        mystats[array]['blc_datavol_max'] = np.max(mydb_arr['blc_datavol_typical_total'])
+        mystats[array]['blc_datavol_wavg'] = np.average(mydb_arr['blc_datavol_typical_total'],
+                                                              weights=mydb_arr['time_tot'])
+        mystats[array]['blc_datavol_tot'] = np.sum(mydb_arr['blc_datavol_typical_total'])
+        
+
+        ## cube size
+        mystats[array]['wsu_cubesize_min'] = np.min(mydb_arr['wsu_cubesize_stepped2'])
+        mystats[array]['wsu_cubesize_median'] = np.median(mydb_arr['wsu_cubesize_stepped2'])
+        mystats[array]['wsu_cubesize_max'] = np.max(mydb_arr['wsu_cubesize_stepped2'])
+        mystats[array]['wsu_cubesize_wavg'] = np.average(mydb_arr['wsu_cubesize_stepped2'],
+                                                       weights=mydb_arr['time_tot'])
+
+        
+          
+        mystats[array]['blc_cubesize_min'] = np.min(mydb_arr['blc_cubesize']) 
+        mystats[array]['blc_cubesize_median'] = np.median(mydb_arr['blc_cubesize'])
+        mystats[array]['blc_cubesize_max'] = np.max(mydb_arr['blc_cubesize'])
+        mystats[array]['blc_cubesize_wavg'] = np.average(mydb_arr['blc_cubesize'],
+                                                         weights=mydb_arr['time_tot'])
+        
+        
+        ## image productsize
+        mystats[array]['wsu_productsize_min'] = np.min(mydb_arr['wsu_productsize_'+stage+'_stepped2'])
+        mystats[array]['wsu_productsize_median'] = np.median(mydb_arr['wsu_productsize_'+stage+'_stepped2'])
+        mystats[array]['wsu_productsize_max'] = np.max(mydb_arr['wsu_productsize_'+stage+'_stepped2'])
+        mystats[array]['wsu_productsize_wavg'] = np.average(mydb_arr['wsu_productsize_'+stage+'_stepped2'],
+                                                            weights=mydb_arr['time_tot'])
+        mystats[array]['wsu_productsize_tot'] = np.sum(mydb_arr['wsu_productsize_'+stage+'_stepped2'])
+        
+
+        mystats[array]['blc_productsize_min'] = np.min(mydb_arr['blc_productsize'])
+        mystats[array]['blc_productsize_median'] = np.median(mydb_arr['blc_productsize'])
+        mystats[array]['blc_productsize_max'] = np.max(mydb_arr['blc_productsize'])
+        mystats[array]['blc_productsize_wavg'] = np.ma.average(mydb_arr['blc_productsize'],
+                                                               weights=mydb_arr['time_tot'].value)
+        mystats[array]['blc_productsize_tot'] = np.nansum(mydb_arr['blc_productsize'])
+
+        ## mitigated productsize
+
+        ## have BLC -- need to calculate WSU -- do these calculations when renovating for tint
+        mystats[array]['blc_productsize_mit_min'] = np.min(mydb_arr['mitigatedprodsize'])
+        mystats[array]['blc_productsize_mit_median'] = np.median(mydb_arr['mitigatedprodsize'])
+        mystats[array]['blc_productsize_mit_max'] = np.max(mydb_arr['mitigatedprodsize'])
+        mystats[array]['blc_productsize_mit_wavg'] = np.ma.average(mydb_arr['mitigatedprodsize'],
+                                                                   weights=mydb_arr['time_tot'].value)
+
+        mystats[array]['blc_productsize_mit_tot'] = np.nansum(mydb_arr['mitigatedprodsize'])
+
+        
+
+        
+    return mystats
+    
+
+def make_wsu_stats_table(mystats, fileout='test.csv'):
+    '''
+    Purpose: Make CSV table of WSU stats
+
+    Input: my stats
+
+    Output: cvs table of WSU stats
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    1/25/2023   A.A. Kepley     Original Code
+    '''
+
+    import csv
+    
+    with open (fileout,'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        
+        writer.writerow(['', '', '12m','','','7m','',''])
+        writer.writerow(['', '', 'WSU','BLC', 'BLC Factor', 'WSU', 'BLC', 'BLC Factor']) 
+
+        for mycat  in ['datarate','nchan_agg','nchan_spw','datavol','cubesize','productsize']:
+            if mycat == 'datarate':
+                mylabel = 'Data Rates'
+            elif mycat == 'nchan_agg':
+                mylabel = 'Aggregate Nchan'
+            elif mycat == 'nchan_spw':
+                mylabel = 'Nchan per SPW'
+            elif mycat == 'datavol':
+                mylabel = 'Visibility Data Volume'
+            elif mycat == 'cubesize':
+                mylabel = 'Cube size'
+            elif mycat == 'productsize':
+                mylabel = 'Product size'
+
+            if (mycat == 'datavol') | (mycat == 'productsize'):
+                val_list = ['min','median','max','wavg','tot']
+            else:
+                val_list = ['min','median','max','wavg']
+            
+            for myval in val_list:
+                if myval == 'median':
+                    mylabel = mystats['12m']['wsu_'+mycat+'_'+myval].unit.to_string()
+                elif myval != 'min':
+                    mylabel = ''
+
+                if mycat in ['datarate','datavol','cubesize','productsize']:
+                    writer.writerow([mylabel, myval,
+                                     mystats['12m']['wsu_'+mycat+'_'+myval].value,
+                                     mystats['12m']['blc_'+mycat+'_'+myval].value,
+                                     mystats['12m']['wsu_'+mycat+'_'+myval]/mystats['7m']['blc_'+mycat+'_'+myval],
+                                     mystats['7m']['wsu_'+mycat+'_'+myval].value,
+                                     mystats['7m']['blc_'+mycat+'_'+myval].value,
+                                     mystats['7m']['wsu_'+mycat+'_'+myval]/mystats['7m']['blc_'+mycat+'_'+myval]])
+
+                else:
+                    
+                     writer.writerow([mylabel, myval,
+                                     mystats['12m']['wsu_'+mycat+'_'+myval],
+                                     mystats['12m']['blc_'+mycat+'_'+myval],
+                                     mystats['12m']['wsu_'+mycat+'_'+myval]/mystats['7m']['blc_'+mycat+'_'+myval],
+                                     mystats['7m']['wsu_'+mycat+'_'+myval],
+                                     mystats['7m']['blc_'+mycat+'_'+myval],
+                                     mystats['7m']['wsu_'+mycat+'_'+myval]/mystats['7m']['blc_'+mycat+'_'+myval]])
+
