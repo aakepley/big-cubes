@@ -846,6 +846,51 @@ def create_per_mous_db(mydb):
     return mous_db
 
 
+def apply_mitigations(mydb,
+                      maxcubesize=40 * u.GB,
+                      maxcubelimit=60 * u.GB,
+                      maxproductsize = 500*u.GB):
+    '''
+    Purpose: apply the maximum mitigation to the data base
+
+    Inputs: per mous data base (because mitigations are per mous)
+
+    ** this means that I need to account for both number of spws & number of sources**
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    1/26/2023   A.A. Kepley     Original Code
+    '''
+
+    from large_cubes import calc_mfs_size, calc_cube_size
+
+    mydb['imsize_mit'] = mydb['imsize']
+
+    ## if either productsize or cubesize is greater than limit reduce to smallest possible cubesize
+    mos_idx = ( (mydb['mosaic'] =='T') &
+                ((mydb['wsu_cubesize_stepped2'] > maxcubesize) |
+                 (mydb['wsu_productsize_early_stepped2'] > maxproductsize)))
+    
+    sf_idx =  ( (mydb['mosaic'] =='F') &
+                ((mydb['wsu_cubesize_stepped2'] > maxcubesize) |
+                 (mydb['wsu_productsize_early_stepped2'] > maxproductsize)))
+    
+
+    # For mosaics, only pixels per beam mitigation is possible
+    mydb['imsize_mit'][mos_idx] = mydb['imsize'][mos_idx] * (3.0/5.0)
+
+    # For SF, both pixels per beam and FOV mitigation is possible
+    # 0.47 is from reducing FOV from 0.2 to 0.7 (linear, not area)
+    mydb['imsize_mit'][sf_idx] = mydb['imsize'][sf_idx] * 0.47 * (3.0/5.0)   
+
+    mydb['wsu_cubesize_stepped2_mit'] = calc_cube_size(mydb['imsize_mit'], mydb['wsu_nchan_spw_stepped2'])
+
+    mydb['wsu_mfssize_mit'] = calc_mfs_size(mydb['imsize_mit'])                                                       
+
+    for stage in ['early']:                                                       
+        mydb['wsu_productsize_'+stage+'_stepped2_mit'] = 2.0 * (mydb['wsu_cubesize_stepped2_mit'] + mydb['wsu_mfssize_mit']) * mydb['wsu_nspw_'+stage] * mydb['ntarget']
+
+
 def get_pipeinfo(mypkl):
     '''
     Purpose: fix up pandas generated database to play nicely with
