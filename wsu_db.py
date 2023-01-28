@@ -77,7 +77,6 @@ def create_database(cycle7tab):
     blc_bw_agg = []
     blc_bw_max = []
     blc_vel_res = []
-    blc_tint = []
 
     # WSU info
     wsu_npol_list = []
@@ -555,6 +554,33 @@ def add_blc_tint(orig_db, breakpt_12m=3000.0 * u.m):
     orig_db['blc_tint'][idx] = tint_12m_short * orig_db['blc_tint'][idx]
 
 
+def add_blc_tint_from_db(orig_db, csvfile):
+    '''
+    Purpose: add actual BLC tint from csv file with info
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    1/28/2023   A.A. Kepley     Original Code
+    '''
+
+    tint_db = Table.read('data/SB_MetaData_C7_C8_2023Jan27.csv',encoding='utf-8-sig')
+
+    new_tab = join(orig_db, tint_db['Project','SB_name','Integration'],
+                   join_type='left',
+                   keys_left=('proposal_id','schedblock_name'),keys_right=('Project','SB_name'))
+
+    if 'blc_tint' in new_tab.columns:
+        new_tab.remove_column('blc_tint')
+        
+    new_tab.rename_column('Integration','blc_tint')
+    new_tab['blc_tint'].unit = u.s
+
+    
+    return new_tab
+
+    
+
+    
 
 def add_tos_to_db(orig_db, tos_db):
     '''

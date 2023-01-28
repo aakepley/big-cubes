@@ -18,6 +18,12 @@ Associated data:
 * wsu_datarates_mit_per_mous_cycle* -- above plus data rates, current pipeline run time, and mitigation information per mous
 * wsu_datarates_per_moussrc_cycle* -- wsu estimates plus data rates per mous/src (no pipeline runtime information or mitigation information).
 
+------
+
+Version history: 
+-- v1.0 -- original release of data base
+-- v1.1 -- improved blc & aca integration times, improved table join with pipeline weblog info, estimates of "maximum" mitigation
+
 -------
 
 Thanks:
@@ -58,6 +64,8 @@ Notes:
  * For current BLC spectral scans, the number of spectral windows reported is the total number of spectral windows across the entire scan. Divide by the number of tunings to get the number of spectral windows per tuning.
  
  * Bands 1 and 2 are the most challenging bands in terms of data rate and are NOT included in these estimates (because we don't have any observations in cycle 7 and 8 for these bands). The maximum data rate estimates for WSU will be underestimates.
+ 
+ * For maximum mitigation, I'm assuming that mouses with cubes above the maxcubesize (40GB) and product sizes beyond the maxproductsize (500GB) have been reduced to the smallest field of view possible (0.2 -> 0.7 PB) and have a reduced number of pixels per beam (5->3). The field of view mitigation is only possible for single fields. Note that currently we also mitigated by binning by two if that hasn't already happend in the correlator, but that mitigation is only possible because the channels in the BLC aren't independent. For the WSU, the channels are always independent.
 
 ---------------------------
 
