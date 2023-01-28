@@ -77,7 +77,6 @@ def create_database(cycle7tab):
     blc_bw_agg = []
     blc_bw_max = []
     blc_vel_res = []
-    blc_tint = []
 
     # WSU info
     wsu_npol_list = []
@@ -555,6 +554,33 @@ def add_blc_tint(orig_db, breakpt_12m=3000.0 * u.m):
     orig_db['blc_tint'][idx] = tint_12m_short * orig_db['blc_tint'][idx]
 
 
+def add_blc_tint_from_db(orig_db, csvfile):
+    '''
+    Purpose: add actual BLC tint from csv file with info
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    1/28/2023   A.A. Kepley     Original Code
+    '''
+
+    tint_db = Table.read('data/SB_MetaData_C7_C8_2023Jan27.csv',encoding='utf-8-sig')
+
+    new_tab = join(orig_db, tint_db['Project','SB_name','Integration'],
+                   join_type='left',
+                   keys_left=('proposal_id','schedblock_name'),keys_right=('Project','SB_name'))
+
+    if 'blc_tint' in new_tab.columns:
+        new_tab.remove_column('blc_tint')
+        
+    new_tab.rename_column('Integration','blc_tint')
+    new_tab['blc_tint'].unit = u.s
+
+    
+    return new_tab
+
+    
+
+    
 
 def add_tos_to_db(orig_db, tos_db):
     '''
@@ -845,6 +871,113 @@ def create_per_mous_db(mydb):
             
     return mous_db
 
+
+def apply_mitigations(mydb,
+                      maxcubesize=40 * u.GB,
+                      maxcubelimit=60 * u.GB,
+                      maxproductsize = 500*u.GB):
+    '''
+    Purpose: apply the maximum mitigation to the data base
+
+    Inputs: per mous data base (because mitigations are per mous)
+
+    ** this means that I need to account for both number of spws & number of sources**
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    1/26/2023   A.A. Kepley     Original Code
+    '''
+
+    from large_cubes import calc_mfs_size, calc_cube_size
+
+    mydb['imsize_mit'] = mydb['imsize']
+
+    ## if either productsize or cubesize is greater than limit reduce to smallest possible cubesize
+    mos_idx = ( (mydb['mosaic'] =='T') &
+                ((mydb['wsu_cubesize_stepped2'] > maxcubesize) |
+                 (mydb['wsu_productsize_early_stepped2'] > maxproductsize)))
+    
+    sf_idx =  ( (mydb['mosaic'] =='F') &
+                ((mydb['wsu_cubesize_stepped2'] > maxcubesize) |
+                 (mydb['wsu_productsize_early_stepped2'] > maxproductsize)))
+    
+
+    # For mosaics, only pixels per beam mitigation is possible
+    mydb['imsize_mit'][mos_idx] = mydb['imsize'][mos_idx] * (3.0/5.0)
+
+    # For SF, both pixels per beam and FOV mitigation is possible
+    # 0.47 is from reducing FOV from 0.2 to 0.7 (linear, not area)
+    mydb['imsize_mit'][sf_idx] = mydb['imsize'][sf_idx] * 0.47 * (3.0/5.0)   
+
+    mydb['wsu_cubesize_stepped2_mit'] = calc_cube_size(mydb['imsize_mit'], mydb['wsu_nchan_spw_stepped2'])
+
+    mydb['wsu_mfssize_mit'] = calc_mfs_size(mydb['imsize_mit'])                                                       
+
+    for stage in ['early']:                                                       
+        mydb['wsu_productsize_'+stage+'_stepped2_mit'] = 2.0 * (mydb['wsu_cubesize_stepped2_mit'] + mydb['wsu_mfssize_mit']) * mydb['wsu_nspw_'+stage] * mydb['ntarget']
+
+
+def get_pipeinfo(mypkl):
+    '''
+    Purpose: fix up pandas generated database to play nicely with
+
+    Inputs:
+      -- location of pickle file
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    1/24/2023   A.A. Kepley     Original Code
+    '''
+
+    import pickle
+    import pandas as pd
+    from large_cubes import fix_mous_col
+    
+    # read in pickle
+    mit = pickle.load(open(mypkl,'rb'))
+    rpd = pd.DataFrame(mit).transpose()
+
+    # set column values type
+    mycols_dtype = {}
+
+    myfloatcols = ['totaltime','imgtime','cubetime','aggtime','fctime',
+              'webpredrms','webcontrms','webcontBW','webfreq',
+              'webbm','webdirtyDR','webDRcorr','webcontpk','webfreqline',
+              'webbmline','webpredrmsline','webdirtyDRline','webDRcorrline',
+              'weblinerms','weblinepk','weblineBW','allowedcubesize',
+              'allowedcubelimit','predcubesize','mitigatedcubesize','allowedprodsize',
+              'initialprodsize','prodsizeaftercube','mitigatedprodsize']
+    for col in myfloatcols:
+        if col in rpd.columns:
+            mycols_dtype[col] = 'float'
+
+    mycols = ['nant','nEB','npt','nscan','nscience','nspw']
+    for col in mycols:
+        if col in rpd.columns:
+            mycols_dtype[col] = 'int'        
+          
+    mycols = ['mitigated']
+    for col in mycols:
+        if col in rpd.columns:
+            mycols_dtype[col] = 'bool'
+    
+    rpd = rpd.astype(dtype=mycols_dtype)
+
+    # read into astropy    
+    mytab = Table.from_pandas(rpd,index=True)
+    mytab.rename_column('index','mous')
+    mytab = Table(mytab,masked=True)
+
+    # fix up float columns
+    for col in mytab.columns:
+        if col in myfloatcols:
+            mytab.fill_value = np.nan
+
+    # fix up mous names
+    fix_mous_col(mytab)
+
+    return mytab
+    
 
 
 def join_wsu_and_mit_dbs(mous_db,mit_db):

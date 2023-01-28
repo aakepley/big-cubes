@@ -1559,3 +1559,222 @@ def make_velocity_bar(result,
     return count_arr
                       
 
+def calc_wsu_stats(mydb,stage='early'):
+    '''
+    Purpose: calculate statistics for WSU Fidicual Properties
+
+    Output: dictionary
+
+    ## TODO : add mitigated product size
+    
+    
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    1/25/2023   A.A. Kepley     Original code
+    
+    '''
+
+
+    mystats = {}
+    mystats['12m']  = {}
+    mystats['7m']  = {}
+
+    
+    for array in ['12m','7m']:
+        idx = mydb['array'] == array
+
+        # select only the array I want
+        mydb_arr = mydb[idx]
+
+        # list of values to calculate
+        val_list = ['datarate','nchan_agg','nchan_spw','datavol','cubesize','productsize']
+
+        for myval in val_list:
+            if myval == 'datarate':
+                wsu_vals = mydb_arr['wsu_datarate_'+stage+'_stepped2_typical']
+                blc_vals =  mydb_arr['blc_datarate_typical']
+            elif myval == 'nchan_agg':
+                wsu_vals = mydb_arr['wsu_nchan_spw_stepped2'] * mydb_arr['wsu_nspw_'+stage]
+                blc_vals = mydb_arr['blc_nchan_agg']
+            elif myval == 'nchan_spw':
+                wsu_vals = mydb_arr['wsu_nchan_spw_stepped2']
+                blc_vals = mydb_arr['blc_nchan_max']
+            elif myval == 'datavol':
+                wsu_vals = mydb_arr['wsu_datavol_'+stage+'_stepped2_typical_total']
+                blc_vals =  mydb_arr['blc_datavol_typical_total']
+            elif myval == 'cubesize':
+                wsu_vals = mydb_arr['wsu_cubesize_stepped2']
+                blc_vals = mydb_arr['blc_cubesize']
+            elif myval == 'productsize':
+                wsu_vals = mydb_arr['wsu_productsize_'+stage+'_stepped2']
+                blc_vals = mydb_arr['blc_productsize']
+            else:
+                print("Skipping. Value not recognized: " + myval)
+                continue
+
+            myweights = mydb_arr['time_tot']
+
+            # standard values
+            mystats[array]['wsu_'+myval+'_min'] = np.min(wsu_vals)
+            mystats[array]['wsu_'+myval+'_median'] = np.median(wsu_vals)
+            mystats[array]['wsu_'+myval+'_max'] = np.max(wsu_vals)
+            mystats[array]['wsu_'+myval+'_75p'] = np.percentile(wsu_vals,0.75)
+            mystats[array]['wsu_'+myval+'_avg']  = np.ma.average(wsu_vals)
+            mystats[array]['wsu_'+myval+'_wavg']  = np.ma.average(wsu_vals,
+                                                               weights=myweights)
+            
+            mystats[array]['blc_'+myval+'_min'] = np.min(blc_vals)
+            mystats[array]['blc_'+myval+'_median'] = np.median(blc_vals)
+            mystats[array]['blc_'+myval+'_max'] = np.max(blc_vals)
+            mystats[array]['blc_'+myval+'_75p'] = np.percentile(blc_vals,0.75)
+            mystats[array]['blc_'+myval+'_avg']  = np.ma.average(blc_vals)
+            mystats[array]['blc_'+myval+'_wavg']  = np.ma.average(blc_vals,
+                                                               weights=myweights)
+
+            # also calculate total if appropriate
+            if myval in ['datavol','productsize']:
+                mystats[array]['wsu_'+myval+'_tot'] = np.ma.sum(wsu_vals)
+                mystats[array]['blc_'+myval+'_tot'] = np.ma.sum(blc_vals)
+
+
+        
+    return mystats
+    
+
+def make_wsu_stats_table(mystats, fileout='test.csv'):
+    '''
+    Purpose: Make CSV table of WSU stats
+
+    Input: my stats
+
+    Output: cvs table of WSU stats
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    1/25/2023   A.A. Kepley     Original Code
+    '''
+
+    import csv
+    
+    with open (fileout,'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        
+        writer.writerow(['', '', '12m','','','7m','',''])
+        writer.writerow(['', '', 'WSU','BLC', 'BLC Factor', 'WSU', 'BLC', 'BLC Factor']) 
+
+        for mycat  in ['datarate','nchan_agg','nchan_spw','datavol','cubesize','productsize']:
+            if mycat == 'datarate':
+                mylabel = 'Data Rates'
+            elif mycat == 'nchan_agg':
+                mylabel = 'Aggregate Nchan'
+            elif mycat == 'nchan_spw':
+                mylabel = 'Nchan per SPW'
+            elif mycat == 'datavol':
+                mylabel = 'Visibility Data Volume'
+            elif mycat == 'cubesize':
+                mylabel = 'Cube size'
+            elif mycat == 'productsize':
+                mylabel = 'Product size'
+
+            if (mycat == 'datavol') | (mycat == 'productsize'):
+                val_list = ['min','median','avg','wavg','75p','max','tot']
+            else:
+                val_list = ['min','median','avg','wavg','75p','max']
+            
+            for myval in val_list:
+                if myval == 'median':
+                    mylabel = mystats['12m']['wsu_'+mycat+'_'+myval].unit.to_string()
+                elif myval != 'min':
+                    mylabel = ''
+
+                if mycat in ['datarate','datavol','cubesize','productsize']:
+                    writer.writerow([mylabel, myval,
+                                     mystats['12m']['wsu_'+mycat+'_'+myval].value,
+                                     mystats['12m']['blc_'+mycat+'_'+myval].value,
+                                     mystats['12m']['wsu_'+mycat+'_'+myval]/mystats['12m']['blc_'+mycat+'_'+myval],
+                                     mystats['7m']['wsu_'+mycat+'_'+myval].value,
+                                     mystats['7m']['blc_'+mycat+'_'+myval].value,
+                                     mystats['7m']['wsu_'+mycat+'_'+myval]/mystats['7m']['blc_'+mycat+'_'+myval]])
+
+                else:                  
+                     writer.writerow([mylabel, myval,
+                                      mystats['12m']['wsu_'+mycat+'_'+myval],
+                                      mystats['12m']['blc_'+mycat+'_'+myval],
+                                      mystats['12m']['wsu_'+mycat+'_'+myval]/mystats['12m']['blc_'+mycat+'_'+myval],
+                                      mystats['7m']['wsu_'+mycat+'_'+myval],
+                                      mystats['7m']['blc_'+mycat+'_'+myval],
+                                      mystats['7m']['wsu_'+mycat+'_'+myval]/mystats['7m']['blc_'+mycat+'_'+myval]])
+                
+
+
+def make_mitigation_stats_table(mydb, maxcubesize=40*u.GB,
+                                maxcubelimit=60*u.GB,
+                                maxproductsize=500*u.GB):
+    '''
+    Purpose: calculate mitigation statistics for WSU
+
+    Date        Programmer      Description of Changes
+    -----------------------------------------------
+    1/26/2023   A.A. Kepley     Original Code
+    '''
+
+    print("maxcubesize: " + maxcubesize.to_string())
+    print("maxcubelimit: " + maxcubelimit.to_string())
+    print("maxproductsize: " + maxproductsize.to_string())
+
+    print("\n")
+
+    nmous = float(len(mydb))
+
+    print("For all stages:")
+
+    myval = np.sum(mydb['wsu_cubesize_stepped2_mit'] > maxcubelimit)
+    print("Percent of MOUSes that will fail on cubesize, assuming mitigation: {:5.2f}".format(100*myval/nmous))
+    
+    myval = np.sum(mydb['wsu_cubesize_stepped2'] > maxcubelimit)
+    print("Percent of MOUSes that will fail on cubesize, assuming no mitigation: {:5.2f}".format(100*myval/nmous))
+
+    myval = np.sum(mydb['wsu_cubesize_stepped2_mit'] > maxproductsize)
+    print("Percent of MOUSes with single cube size greater than productsize, assuming mitigation: {:5.2f}".format(100*myval/nmous))
+    
+    myval = np.sum(mydb['wsu_cubesize_stepped2'] > maxproductsize)
+    print("Percent of MOUSes with single cube size greater than productsize, assuming no mitigation: {:5.2f}".format(100*myval/nmous))
+
+    
+    
+    print("\n")
+    print("early + mitigation:")
+    
+    myval1 = np.sum((mydb['wsu_productsize_early_stepped2_mit'] > maxproductsize) & 
+                   (mydb['wsu_cubesize_stepped2_mit'] < maxcubelimit))
+    print("Percent of MOUSes that will fail productsize (only) assuming mitigation: {:5.2f}".format(100*myval1 / nmous))
+
+    myval2 = np.sum((mydb['wsu_productsize_early_stepped2_mit'] < maxproductsize) & 
+                                    (mydb['wsu_cubesize_stepped2_mit'] > maxcubelimit))
+    print("Percent of MOUSes that will fail cubesize (only) assuming mitigation: {:5.2f}".format(100*myval2/nmous))
+
+    myval3 = np.sum((mydb['wsu_productsize_early_stepped2_mit'] > maxproductsize ) & 
+                   (mydb['wsu_cubesize_stepped2_mit'] > maxcubelimit))
+    print("Percent of MOUSes that will fail on cube and productsize assuming mitigation: {:5.2f}".format(100*myval3/nmous))
+
+    myval4 = myval1 + myval2+ myval3
+    print("Total Percentage of MOUSes failing mitigation: {:5.2f}".format(100*myval4/nmous))
+    
+    for stage in ['early','later_2x', 'later_4x']:
+        print("\n")
+        print(stage+':')
+        myval1 = np.sum((mydb['wsu_productsize_'+stage+'_stepped2'] > maxproductsize) & 
+                       (mydb['wsu_cubesize_stepped2'] < maxcubelimit))
+        print("Percent of MOUSes that will fail productsize (only) assuming NO mitigation: {:5.2f}".format(100*myval1 / nmous))
+        
+        myval2 = np.sum((mydb['wsu_productsize_'+stage+'_stepped2'] < maxproductsize) & 
+                       (mydb['wsu_cubesize_stepped2'] > maxcubesize))
+        print("Percent of MOUSes that will fail cubesize (only) assuming NO mitigation: {:5.2f}".format(100*myval2/nmous))
+        
+        myval3 = np.sum((mydb['wsu_productsize_'+stage+'_stepped2'] > maxproductsize) & 
+                       (mydb['wsu_cubesize_stepped2'] > maxcubesize))
+        print("Percent of MOUSes that will fail on cube and productsize assuming NO mitigation: {:5.2f}".format(100*myval3/nmous))
+          
+        myval4 = myval1 + myval2+ myval3
+        print("Total Percentage of MOUSes failing mitigation: {:5.2f}".format(100*myval4/nmous))
+    
