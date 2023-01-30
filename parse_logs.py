@@ -401,7 +401,153 @@ def parse_all_pipe_casalogs(logdir,n=-1,recipe='hifa_calimage*',
 
     return allresults
 
+def plot_timedist(mytab,plot_title='Test',figname=None):
+    '''
+    Purpose: plot distribution of pipeline run times
 
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    1/30/2023   A.A. Kepely     Original Code
+    
+    '''
+
+    hours_per_day = 24.0 #h
+    hours_per_week = hours_per_day * 7.0
+    hours_per_month = hours_per_day * 30.0
+    hours_per_year = hours_per_day * 365.0
+
+    mybins = 500
+    
+    plt.hist(np.log10(mytab['pl_totaltime']),
+             bins=mybins,
+             cumulative=-1, histtype='step',
+             log=True,
+             density=True,
+             label='Total PL time')
+    plt.hist(np.log10(mytab['pl_caltime']),cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             label='Total PL calibration time')
+    plt.hist(np.log10(mytab['pl_imgtime']),cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             label='Total PL image time')
+
+    plt.axvline(np.log10(hours_per_week),color='black',linestyle=':')
+    plt.axvline(np.log10(hours_per_month),color='black')
+
+    plt.text(np.log10(hours_per_week)+0.05,0.1,'1 week',rotation=90)
+    plt.text(np.log10(hours_per_month)+0.05,0.1,'1 month',rotation=90)
+
+
+    #plt.axhline(0.5,color='gray',linestyle='--')
+    
+
+    plt.title(plot_title)
+    plt.legend(loc='lower left')
+
+    plt.xlabel('Log10(Duration in Hours)')
+    plt.ylabel('Fraction of Longer Durations')
+
+    if figname:
+        plt.savefig(figname)
+
+
+def plot_imgtime_breakdown(mytab, plot_title='Test',figname=None):
+    '''
+    Purpose: plot breakdown between cube imaging, agg cont,
+    findcont
+
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    1/30/2023   A.A. Kepley     Original Code
+
+    '''
+
+    hours_per_day = 24.0
+    hours_per_week = hours_per_day * 7.0
+    hours_per_month = hours_per_day * 30.0
+    hours_per_year = hours_per_day * 365.0
+
+    mybins = 500
+    
+
+    plt.hist(np.log10(mytab['pl_imgtime']),cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             label='Total PL image time',
+             color='green')
+    
+    plt.hist(np.log10(mytab['pl_cubetime']),cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             label='Cube image time',
+             color='orange')
+
+    plt.hist(np.log10(mytab['pl_fctime']),cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             label='Findcont time')
+
+
+    plt.hist(np.log10(mytab['pl_aggtime']),cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             label='aggcont time')
+
+    plt.axvline(np.log10(hours_per_week),color='black',linestyle=':')
+    plt.axvline(np.log10(hours_per_month),color='black')
+
+    plt.text(np.log10(hours_per_week)+0.05,0.1,'1 week',rotation=90)
+    plt.text(np.log10(hours_per_month)+0.05,0.1,'1 month',rotation=90)
+
+
+    #plt.axhline(0.5,color='gray',linestyle='--')
+    
+
+    plt.title(plot_title)
+    plt.legend(loc='lower left')
+
+    plt.xlabel('Log10(Duration in Hours)')
+    plt.ylabel('Fraction of Longer Durations')
+
+    if figname:
+        plt.savefig(figname)
+
+    pass
+
+        
+def plot_caltime_estimate():
+    '''
+    Purpose: plot estimate for calibration time for PL
+
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+
+    
+    
+    '''
+
+    pass
+
+def plot_imgtime_estimate():
+    '''
+    '''
+
+    pass
+
+def plot_tottime_estimate():
+    '''
+    '''
+
+    pass
+    
 def plot_cal_img_time(mytab,plot_title='Cycle'):
     '''
     Purpose: Plot fraction of time spent on in calibration and imaging portions
@@ -409,7 +555,7 @@ def plot_cal_img_time(mytab,plot_title='Cycle'):
 
     Date        Programmer      Description of Changes
     ----------------------------------------------------------------------
-    1/23/2023   A.A. Kepley     Original Code'
+    1/23/2023   A.A. Kepley     Original Code
     '''
 
     idx = (mytab['procedure'] == 'hifa_caliamge') | (mytab['procedure'] == 'hifa_calimage_renorm')
@@ -432,7 +578,7 @@ def plot_cal_img_time(mytab,plot_title='Cycle'):
     ax.set_title(plot_title)
 
 
-def plot_casa_time(mytab, plot_title='Cycle 7'):
+def plot_casa_time(mytab, plot_title='Cycle 7', figname=None):
     '''
     Purpose: Plot fraction of time spent on CASA in pipeline runs
 
@@ -445,6 +591,7 @@ def plot_casa_time(mytab, plot_title='Cycle 7'):
     
     frac_casa = (mytab['casatasks'] + mytab['casatools'])/mytab['pipetime']
     frac_tasks = (mytab['casatasks'] / mytab['pipetime'])
+                  
     frac_tools = (mytab['casatools'] /mytab['pipetime'])
     
     mylabels = ['CASA', 'Tasks', 'Tools']
@@ -457,10 +604,15 @@ def plot_casa_time(mytab, plot_title='Cycle 7'):
     
     ax.set_xticks(np.arange(1,len(mylabels)+1),labels=mylabels)
     ax.set_title(plot_title)
+
+    ax.set_ylabel('Fraction of pipeline run time')
+    
+    if figname:
+        plt.savefig(figname)
     
 
 
-def plot_casa_task_time(mytab, plot_title='Cycle 7'):
+def plot_casa_task_time(mytab, plot_title='Cycle 7', figname=None):
     '''
     Purpose: Plot fraction of time spent on different CASA tasks
 
@@ -483,7 +635,11 @@ def plot_casa_task_time(mytab, plot_title='Cycle 7'):
     ax.set_xticks(np.arange(1,len(mycols_tasks)+1),labels=mycols_tasks,rotation=90)
 
     ax.set_title(plot_title)
+
+    ax.set_ylabel('Fraction of pipeline run time')
     
+    if figname:
+        plt.savefig(figname)
     
 def plot_casa_tool_time(mytab, plot_title='Cycle 7'):
     '''
@@ -510,5 +666,62 @@ def plot_casa_tool_time(mytab, plot_title='Cycle 7'):
     ax.set_title(plot_title)
     
 
+
+
+def convert_to_astropy(pkl_file, dump_rows=None):
+    '''
+    Purpose: convert casa/pl timing pickle to astropy table
+
+    pkl: input pickle
+    
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------
+    1/30/2023   A.A. Kepley     Original Code
+  
+    '''
+    import pickle
+    import pandas as pd
+    from large_cubes import fix_mous_col
+
+    pkl = pickle.load(open(pkl_file,'rb'))
+
+    rpd = pd.DataFrame(pkl).transpose()
+
+    # fix up data types
+    mycols_float = ['importasdm','flagdata','listobs','plotms','clearstat',
+                    'flagcmd','gencal','plotbandpass','wvrgcal','gaincal',
+                    'bandpass','setjy','flagmanager','applycal','fluxscale',
+                    'tclean','exportfits','mstransform','imhead','immoments',
+                    'imstat','imsubimage','makemask','immath','uvcontfit','visstat',
+                    'pipetime','casatasks','casatools','imager.selectvis','imager.advise',
+                    'imager.apparentsens','ia.getprofile']
+    
+    mycols_dtype = {}
+    for col in mycols_float:
+        mycols_dtype[col]  = 'float'
+
+    mycols = ['casaversion','recipe']
+    for col in mycols:
+        mycols_dtype[col] = 'str'
+        
+    rpd = rpd.astype(dtype=mycols_dtype)
+
+    mytab = Table.from_pandas(rpd,index=True)
+    mytab.rename_column('index','mous')
+    mytab = Table(mytab,masked=True)
+
+    for col in mytab.columns:
+        if col in mycols_float:
+            mytab.fill_value = np.nan
+
+    fix_mous_col(mytab)
+
+    if dump_rows:
+        for myrow in dump_rows:
+            idx = mytab['mous'] == myrow
+            mytab = mytab[~idx]
+            
+    
+    return mytab
 
 
