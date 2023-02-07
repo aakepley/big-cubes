@@ -1035,3 +1035,31 @@ def join_wsu_and_mit_dbs(mous_db,mit_db):
 
 
     return mous_mit_db
+
+def predict_pl_timings(mydb):
+    '''
+    Purpose: rough predictions of various pipeline timings.
+
+    Method:
+    -- wsu_caltime = pl_caltime * (nvis_cal_wsu/nvis_cal_blc)
+    -- wsu_imgtime = pl_imgtime * (productsize_wsu_[mit,unmit]/productsize_blc_mit)
+    -- wsu_totaltime = wsu_caltime + wsu_imgtime
+    
+    
+    Date        Programmer      Description of Change
+    --------------------------------------------------
+    1/31/2023   A.A. Kepley     Original Code
+    '''
+    
+    for stage in ['early','later_2x','later_4x']:
+        mydb['wsu_pl_caltime_'+stage] =  mydb['pl_caltime'] * (mydb['wsu_nvis_'+stage+'_stepped2_typical_cal']/mydb['blc_nvis_typical_cal'])
+        mydb['wsu_pl_imgtime_'+stage] = mydb['pl_imgtime'] * (mydb['wsu_productsize_'+stage+'_stepped2']/mydb['mitigatedprodsize'])
+        mydb['wsu_pl_totaltime_'+stage] = mydb['wsu_pl_caltime_'+stage] + mydb['wsu_pl_imgtime_'+stage]
+
+        # if early also calculate mitigated.
+        if stage == 'early':
+            mydb['wsu_pl_imgtime_'+stage+'_mit'] = mydb['pl_imgtime'] * (mydb['wsu_productsize_'+stage+'_stepped2_mit']/mydb['mitigatedprodsize'])
+            mydb['wsu_pl_totaltime_'+stage+'_mit'] = mydb['wsu_pl_caltime_'+stage] + mydb['wsu_pl_imgtime_'+stage+'_mit']
+            
+
+

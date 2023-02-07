@@ -1778,3 +1778,6 @@ def make_mitigation_stats_table(mydb, maxcubesize=40*u.GB,
         myval4 = myval1 + myval2+ myval3
         print("Total Percentage of MOUSes failing mitigation: {:5.2f}".format(100*myval4/nmous))
     
+
+
+                                                                                            
