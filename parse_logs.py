@@ -436,12 +436,13 @@ def plot_timedist(mytab,plot_title='Test',figname=None):
              label='Total PL image time')
 
     plt.axvline(np.log10(hours_per_week),color='black',linestyle=':')
-    plt.axvline(np.log10(hours_per_month),color='black')
+    plt.axvline(np.log10(hours_per_month),color='black',linestyle='--')
 
     plt.text(np.log10(hours_per_week)+0.05,0.1,'1 week',rotation=90)
     plt.text(np.log10(hours_per_month)+0.05,0.1,'1 month',rotation=90)
 
-
+    plt.grid(which='both',axis='both',linestyle=':')
+    
     #plt.axhline(0.5,color='gray',linestyle='--')
     
 
@@ -502,12 +503,13 @@ def plot_imgtime_breakdown(mytab, plot_title='Test',figname=None):
              label='aggcont time')
 
     plt.axvline(np.log10(hours_per_week),color='black',linestyle=':')
-    plt.axvline(np.log10(hours_per_month),color='black')
+    plt.axvline(np.log10(hours_per_month),color='black',linestyle='--')
 
     plt.text(np.log10(hours_per_week)+0.05,0.1,'1 week',rotation=90)
     plt.text(np.log10(hours_per_month)+0.05,0.1,'1 month',rotation=90)
 
 
+    plt.grid(which='both',axis='both',linestyle=':')
     #plt.axhline(0.5,color='gray',linestyle='--')
     
 
@@ -520,33 +522,320 @@ def plot_imgtime_breakdown(mytab, plot_title='Test',figname=None):
     if figname:
         plt.savefig(figname)
 
-    pass
-
-        
-def plot_caltime_estimate():
+def plot_wsu_pl_time(mydb,pl_type='caltime',
+                     plot_title='Cycle 7 & 8 predictions',
+                     figname=None):
     '''
-    Purpose: plot estimate for calibration time for PL
+    Purpose: calculate pipeline calibration time
 
     Date        Programmer      Description of Changes
     ---------------------------------------------------
+    1/31/2023   A.A. Kepley     Original Code
+    '''
+
+    hours_per_day = 24.0
+    hours_per_week = hours_per_day * 7.0
+    hours_per_month = hours_per_day * 30.0
+    hours_per_year = hours_per_day * 365.0
+
+    mybins = 500
+
+    plt.hist(np.log10(mydb['pl_'+pl_type]),cumulative=-1,histtype='step',
+             bins = mybins,
+             log=True,
+             density=True,
+             color='#1f77b4',
+             label='BLC')
+
+
+    if pl_type in ['imgtime','totaltime']:        
+        plt.hist(np.log10(mydb['wsu_pl_'+pl_type+'_early_mit']),cumulative=-1,histtype='step',
+                 bins = mybins,
+                 log=True,
+                 density=True,
+                 color='#ff7f0e',
+                 linestyle='-',
+                 label='early WSU (mitigated)')
+    
+
+    plt.hist(np.log10(mydb['wsu_pl_'+pl_type+'_early']),cumulative=-1,histtype='step',
+             bins = mybins,
+             log=True,
+             density=True,
+             color='#ff7f0e',
+             linestyle=':',
+             label='early WSU')
+
+        
+    plt.hist(np.log10(mydb['wsu_pl_'+pl_type+'_later_2x']),cumulative=-1,histtype='step',
+             bins = mybins,
+             log=True,
+             density=True,
+             color='#2ca02c',
+             label='Later WSU (2x)')
+    
+    plt.hist(np.log10(mydb['wsu_pl_'+pl_type+'_later_4x']),cumulative=-1,histtype='step',
+             bins = mybins,
+             log=True,
+             density=True,
+             color='#d62728',
+             label='Later WSU (4x)')
 
     
+        
+    plt.axvline(np.log10(hours_per_week),color='black',linestyle=':')
+    plt.axvline(np.log10(hours_per_month),color='black',linestyle='--')
+    plt.axvline(np.log10(hours_per_year),color='black')
+
+    plt.text(np.log10(hours_per_week)+0.05,0.3,'1 week',rotation=90)
+    plt.text(np.log10(hours_per_month)+0.05,0.3,'1 month',rotation=90)
+    plt.text(np.log10(hours_per_year)+0.05,0.3,'1 year',rotation=90)
+
+    plt.axhline(0.1,color='gray',linestyle=':')
+    plt.text(0,0.1,'90% take less time')
+
+    plt.axhline(0.05,color='gray',linestyle=':')
+    plt.text(0,0.05,'95% smaller')
+
+    plt.axhline(0.01,color='gray',linestyle=':')
+    plt.text(0,0.01,'99% smaller')
+
+    plt.grid(which='both',axis='both',linestyle=':')
     
+    plt.title(plot_title)
+    plt.legend(loc='lower left')
+
+    plt.xlabel('Log10(Duration in Hours)')
+    plt.ylabel('Fraction of Longer Durations')
+
+    if figname:
+        plt.savefig(figname)
+
+
+def plot_cubesize_comparison(mydb,
+                             plot_title='Cube Size',
+                             figname=None):
+    '''
+    Purpose: compare the cubesize distribution
+    between WSU and BLC
+
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    1/31/2023   A.A. Kepley     Original Code
     '''
 
-    pass
+    maxcubesize = 40
+    cubesizelimit = 60
+    
+    mybins = 500
 
-def plot_imgtime_estimate():
+    plt.hist(np.log10(mydb['mitigatedcubesize']),cumulative=-1,histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             color='#1f77b4',
+             linestyle='-',
+             label="BLC (mitigated)")
+
+    plt.hist(np.log10(mydb['predcubesize']), cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             color='#1f77b4',
+             linestyle=':',
+             label="BLC (unmitigated)")
+
+
+    plt.hist(np.log10(mydb['wsu_cubesize_stepped2_mit']), cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             color='#ff7f0e',
+             label="WSU (mitigated)")
+
+
+    plt.hist(np.log10(mydb['wsu_cubesize_stepped2']), cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             color='#ff7f0e',
+             linestyle=':',
+             label="WSU (unmitigated)")
+
+    plt.axvline(np.log10(maxcubesize), color='black', linestyle=':')
+    plt.axvline(np.log10(cubesizelimit), color='black', linestyle='-')
+    
+    plt.text(np.log10(maxcubesize)-0.1,0.5,'40GB',horizontalalignment='right')
+    plt.text(np.log10(cubesizelimit)+0.1,0.5,'60GB',horizontalalignment='left')
+
+    plt.axhline(0.1,color='gray',linestyle=':')
+    plt.text(0,0.1,'90% smaller')
+
+    plt.axhline(0.05,color='gray',linestyle=':')
+    plt.text(0,0.05,'95% smaller')
+
+    plt.axhline(0.01,color='gray',linestyle=':')
+    plt.text(0,0.01,'99% smaller')
+
+    plt.grid(which='both',axis='both',linestyle=':')
+    
+    plt.xlabel('Log10(Cubesize in GB)')
+    plt.ylabel('Fraction of Larger Cubes')
+
+    plt.title(plot_title)
+    plt.legend(loc='lower left')
+
+    if figname:
+        plt.savefig(figname)
+    
+def plot_productsize_comparison(mydb,
+                                plot_title='Product Size',
+                                figname=None):
     '''
+    Purpose: compare the productsize distribution
+    between WSU and BLC
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    1/31/2023   A.A. Kepley     Original Code
+
     '''
 
-    pass
+    maxproductsize = 500 #GB
+    mybins = 500
 
-def plot_tottime_estimate():
+    plt.hist(np.log10(mydb['mitigatedprodsize']),cumulative=-1,histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             color='#1f77b4',
+             linestyle='-',
+             label="BLC (mitigated)")
+
+    plt.hist(np.log10(mydb['initialprodsize']), cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             color='#1f77b4',
+             linestyle=':',
+             label="BLC (unmitigated)")
+
+
+    plt.hist(np.log10(mydb['wsu_productsize_early_stepped2_mit']), cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             color='#ff7f0e',
+             label="Early WSU (mitigated)")
+
+    plt.hist(np.log10(mydb['wsu_productsize_early_stepped2']), cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             color='#ff7f0e',
+             linestyle=':',
+             label="Early WSU")
+
+    plt.hist(np.log10(mydb['wsu_productsize_later_2x_stepped2']), cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             color='#2ca02c',
+             label="Later WSU (2x)")
+
+    plt.hist(np.log10(mydb['wsu_productsize_later_4x_stepped2']), cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             color='#d62728',
+             label="Later WSU (4x)")
+
+    plt.axvline(np.log10(maxproductsize), color='black', linestyle=':')
+
+    
+    plt.text(np.log10(maxproductsize)-0.1,0.5,'500GB',horizontalalignment='right')
+
+    plt.axhline(0.1,color='gray',linestyle=':')
+    plt.text(0,0.1,'90% smaller')
+
+    plt.axhline(0.05,color='gray',linestyle=':')
+    plt.text(0,0.05,'95% smaller')
+
+    plt.axhline(0.01,color='gray',linestyle=':')
+    plt.text(0,0.01,'99% smaller')
+
+    plt.grid(which='both',axis='both',linestyle=':')
+    
+    plt.xlabel('Log10(Product size in GB)')
+    plt.ylabel('Fraction of Larger Products')
+
+    plt.title(plot_title)
+    plt.legend(loc='lower left')
+
+    if figname:
+        plt.savefig(figname)
+    
+
+def plot_datavol_comparison(mydb,
+                         plot_title="Visibility Data Volume",
+                         figname=None):
     '''
+    Purpose: compare the nvis distribution
+    between WSU and BLC
+    
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    1/31/2023   A.A. Kepley     Original Code
     '''
 
-    pass
+    mybins = 500
+
+    plt.hist(np.log10(mydb['blc_datavol_typical_total']),cumulative=-1,histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             label="BLC")
+    
+    plt.hist(np.log10(mydb['wsu_datavol_early_stepped2_typical_total']), cumulative=-1,histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             label="early WSU")
+
+    plt.hist(np.log10(mydb['wsu_datavol_later_2x_stepped2_typical_total']), cumulative=-1,histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             label="later WSU (2x)")
+
+    plt.hist(np.log10(mydb['wsu_datavol_later_4x_stepped2_typical_total']), cumulative=-1,histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             label="later WSU (4x)")
+        
+
+    plt.axhline(0.1,color='gray',linestyle=':')
+    plt.text(0,0.1,'90% smaller')
+
+    plt.axhline(0.05,color='gray',linestyle=':')
+    plt.text(0,0.05,'95% smaller')
+
+    plt.axhline(0.01,color='gray',linestyle=':')
+    plt.text(0,0.01,'99% smaller')
+
+    plt.grid(which='both',axis='both',linestyle=':')
+    
+    plt.xlabel('Log10(Visibility Data Volume (GB))')
+    plt.ylabel('Fraction of Larger Data')
+
+    plt.title(plot_title)
+    plt.legend(loc='lower left')
+
+    if figname:
+        plt.savefig(figname)
+
+        
     
 def plot_cal_img_time(mytab,plot_title='Cycle'):
     '''
@@ -630,6 +919,7 @@ def plot_casa_task_time(mytab, plot_title='Cycle 7', figname=None):
 
         
     fig, ax = plt.subplots(1,1,figsize=(12,6))
+    fig.subplots_adjust(bottom=0.2,top=0.92)
     parts = ax.violinplot(mydata,showmedians=True, widths=0.9)
     
     ax.set_xticks(np.arange(1,len(mycols_tasks)+1),labels=mycols_tasks,rotation=90)
@@ -667,7 +957,8 @@ def plot_casa_tool_time(mytab, plot_title='Cycle 7'):
     
 
 
-
+    
+    
 def convert_to_astropy(pkl_file, dump_rows=None):
     '''
     Purpose: convert casa/pl timing pickle to astropy table
