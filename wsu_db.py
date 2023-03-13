@@ -4,6 +4,7 @@ import astropy.units as u
 from astropy import constants as const
 import math
 import ipdb
+import matplotlib.pyplot as plt
 
 def calc_talon_specwidth(specwidth):
     '''
@@ -1033,7 +1034,6 @@ def join_wsu_and_mit_dbs(mous_db,mit_db):
     for mykey in ['totaltime','imgtime','cubetime','aggtime','fctime','caltime']:
         mous_mit_db.rename_column(mykey,'pl_'+mykey)
 
-
     return mous_mit_db
 
 def predict_pl_timings(mydb):
@@ -1063,3 +1063,149 @@ def predict_pl_timings(mydb):
             
 
 
+def calc_weights_and_sysperf(mydb):
+    '''
+    Purpose: calculate the fraction of time spent for each MOUS and the required system performance
+
+    Inputs: mydb
+
+    Output: mydb with fractions and estimates of the required system performance
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    2/27/2023   A.A. Kepley     Original Code
+    '''
+
+    perf_factor = 5.66 # (PFLOPS/s) / (GB/s). Empirical value from Table 7.
+
+    # calculate weights
+    mydb['weights_all'] = mydb['time_tot']/np.sum(mydb['time_tot'])
+
+    # calculate system performance
+    mydb['blc_sysperf_typical'] = mydb['blc_datarate_typical'].value * perf_factor
+    mydb['wsu_sysperf_early'] = mydb['wsu_datarate_early_stepped2_typical'].value * perf_factor
+    mydb['wsu_sysperf_later_2x'] = mydb['wsu_datarate_later_2x_stepped2_typical'].value * perf_factor
+    mydb['wsu_sysperf_later_4x'] = mydb['wsu_datarate_later_4x_stepped2_typical'].value * perf_factor
+    
+
+def create_soc_result_plot(mydb,
+                           bin_min=-1,
+                           bin_max=-1,   
+                           nbin=10,
+                           datarate_type = 'blc_datarate_typical', # what data rate type should I take on
+                           title='',
+                           pltname=None,
+                           tblname=None):
+    '''
+    Purpose: create plots and calculate result table 
+
+    Inputs: mydb with weights and sysperformance
+
+    Output:
+        if pltname:
+                plot showing fraction at each data rate
+
+        if tblname:
+                csv file giving fraction, data rate, and sysperformance in each bin
+
+    Date        Programmer      Description of Changes
+    ------------------------------------------------------------------------
+    2/27/2023   A.A. Kepley     Original Code
+
+    
+    '''
+
+    perf_factor = 5.66 # (PFLOPS/s) / (GB/s). Empirical value from Table 7.
+
+    if datarate_type not in mydb.columns:
+        print("Column not found in database: "+datarate_type)
+        return
+
+    if bin_min < 0:
+        bin_min = np.min(mydb[datarate_type]).value
+
+    if bin_max < 0:
+        bin_max = np.max(mydb[datarate_type]).value
+    
+    # nbin+1 not nbin to take care of fence post 
+    mybins = np.linspace(bin_min,bin_max,nbin+1)
+
+    fig, ax1 = plt.subplots()
+    
+    myhist = ax1.hist(mydb[datarate_type].value,bins=mybins,
+                      weights=mydb['weights_all'])
+    
+        
+    mybinvals = myhist[0]
+
+
+    # set up the other axis. This isn't perfect since it contains all bins, not just the ones with the tick marks
+    ax2 = ax1.twiny()    
+    ax2.set_xlim(ax1.get_xlim())
+    ax2.set_xticks(mybins)
+
+    mybins_sysperf = mybins * perf_factor    
+    ax2.set_xticklabels(["{:4.2f}".format(i) for i in mybins_sysperf])
+
+    ax1.set_xlabel('Data rate (GB/s)')
+    ax2.set_xlabel('System Performance (PFLOP/s)')
+
+    ax1.set_ylabel('Fraction of time')
+
+    ax1.set_title(title)
+
+    
+    if pltname:
+        plt.savefig(pltname)
+
+    ## TODO: create data to save into table?
+    
+        
+        
+    
+def create_db_for_sanjay(mydb,filename='data/test.csv'):
+    '''
+    Purpose:
+
+    Inputs: mydb
+
+    Output: csv file with values that Sanjay has requested.
+        * fraction X
+        * array X 
+        * dump time X 
+        * channel size X
+        * number of channels X
+        * number of spws X
+        * image linear size X
+        * number of baselines X
+        * visibility rate (vis/hr) X
+        * fractional bandwidth X 
+        * multi-term ??
+        * data rate X
+        * required system performance X ???
+
+    Method: Take data base and output a sub-set of relevant columns to csv.
+   
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    2/27/2023   A.A. Kepley     Original Code
+    '''
+
+    mycols = ['mous','proposal_id','schedblock_name', ## proposal info
+              'weights_all', # fraction of total cycle 7 and 8 time spend observing
+              'array','nant_typical','nbase_typical', 'L80',## array information
+              'imsize','cell','mosaic', ## image information
+              'wsu_freq','wsu_npol','wsu_tint', ## basic correlator info
+              'wsu_bandwidth_spw', 'wsu_specwidth_stepped2','wsu_nchan_spw_stepped2',  'wsu_frac_bw_spw', # SPW properties
+              'wsu_nspw_early','wsu_nspw_later_2x','wsu_nspw_later_4x', # nspws
+              'wsu_bandwidth_early','wsu_bandwidth_later_2x','wsu_bandwidth_later_4x', #bandwidth
+              'wsu_frac_bw_early','wsu_frac_bw_later_2x','wsu_frac_bw_later_4x', #fractional BW
+              'wsu_datarate_early_stepped2_typical','wsu_datarate_later_2x_stepped2_typical','wsu_datarate_later_4x_stepped2_typical',
+              'wsu_visrate_early_stepped2_typical','wsu_visrate_later_2x_stepped2_typical','wsu_visrate_later_4x_stepped2_typical',
+              'wsu_sysperf_early','wsu_sysperf_later_2x','wsu_sysperf_later_4x']
+
+    
+    mydb[mycols].write(filename)
+         
+    
+    pass
