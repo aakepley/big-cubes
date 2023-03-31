@@ -1,3 +1,4 @@
+
 from astropy.table import Table, QTable, join, unique
 import numpy as np
 import astropy.units as u
@@ -54,6 +55,8 @@ def create_database(cycle7tab):
     proposal_id_list = []
     schedblock_name_list = []
     array_list = []
+    science_keyword_list = []
+    scientific_category_list = []
 
     # basic observing info
     ntarget_list = []
@@ -153,9 +156,9 @@ def create_database(cycle7tab):
             schedblock_name = np.unique(cycle7tab[idx]['schedblock_name'])
             schedblock_name_list.append(schedblock_name)
             
-            # array info
+            # array info & WSU tint
             array_list.append(array)
-            
+                       
             if array == '12m':
                 nant_typical = 47
                 nant_array = 54
@@ -172,10 +175,22 @@ def create_database(cycle7tab):
             nant_all_list.append(nant_all)
             wsu_tint_list.append(wsu_tint)
             
+            # science keyword info
+            ## These are the keywords selected by the PI
+            science_keyword = np.unique(cycle7tab[idx]['science_keyword'])
+            science_keyword_list.append(science_keyword)
+
+            # scientific category
+            ## These do not correspond to the 5 science categories exactly.
+            ## Categories 1 (Cosmology and the high redshift universe) and 2 (galaxies and galactic nuclei)
+            ## are separated depending on input keyword. I think I should be able to map to the
+            ## five "official" categories based on the keywords.
+            scientific_category = np.unique(cycle7tab[idx]['scientific_category'])
+            scientific_category_list.append(scientific_category)
+
             # FOV
             s_fov = np.mean(cycle7tab[idx]['s_fov']) 
             s_fov_list.append(s_fov)
-            
             
             # Resolution
             s_resolution = np.mean(cycle7tab[idx]['s_resolution'])
@@ -388,6 +403,7 @@ def create_database(cycle7tab):
     
     # put together table
     if_mous_tab = QTable([np.squeeze(if_mous_list), np.squeeze(proposal_id_list), np.squeeze(schedblock_name_list),np.squeeze(array_list), 
+                          np.squeeze(science_keyword_list), np.squeeze(scientific_category_list),
                           np.squeeze(nant_typical_list), np.squeeze(nant_array_list), np.squeeze(nant_all_list), 
                           np.squeeze(band_list_array), np.squeeze(ntarget_list), np.squeeze(target_name_list),
                           np.squeeze(s_fov_list), np.squeeze(s_resolution_list), np.squeeze(mosaic_list),
@@ -403,6 +419,7 @@ def create_database(cycle7tab):
                           np.squeeze(wsu_specwidth_stepped2), np.squeeze(wsu_chanavg_stepped2), np.squeeze(wsu_velres_stepped2),
                           np.squeeze(wsu_tint_list)],
                          names=('mous','proposal_id','schedblock_name','array',
+                                'science_keyword','scientific_category',
                                 'nant_typical','nant_array','nant_all',
                                 'band','ntarget','target_name',
                                 's_fov','s_resolution','mosaic',
@@ -1062,51 +1079,26 @@ def predict_pl_timings(mydb):
             mydb['wsu_pl_totaltime_'+stage+'_mit'] = mydb['wsu_pl_caltime_'+stage] + mydb['wsu_pl_imgtime_'+stage+'_mit']
             
 
-
-def calc_weights_and_sysperf(mydb):
-    '''
-    Purpose: calculate the fraction of time spent for each MOUS and the required system performance
-
-    Inputs: mydb
-
-    Output: mydb with fractions and estimates of the required system performance
-
-    Date        Programmer      Description of Changes
-    ----------------------------------------------------------------------
-    2/27/2023   A.A. Kepley     Original Code
-    '''
-
-    perf_factor = 5.66 # (PFLOPS/s) / (GB/s). Empirical value from Table 7.
-
-    # calculate weights
-    mydb['weights_all'] = mydb['time_tot']/np.sum(mydb['time_tot'])
-
-    # calculate system performance
-    mydb['blc_sysperf_typical'] = mydb['blc_datarate_typical'].value * perf_factor
-    mydb['wsu_sysperf_early'] = mydb['wsu_datarate_early_stepped2_typical'].value * perf_factor
-    mydb['wsu_sysperf_later_2x'] = mydb['wsu_datarate_later_2x_stepped2_typical'].value * perf_factor
-    mydb['wsu_sysperf_later_4x'] = mydb['wsu_datarate_later_4x_stepped2_typical'].value * perf_factor
-    
-
+        
 def create_soc_result_plot(mydb,
                            bin_min=-1,
                            bin_max=-1,   
                            nbin=10,
-                           datarate_type = 'blc_datarate_typical', # what data rate type should I take on
+                           data_val = 'blc_datarate_typical', 
                            title='',
                            pltname=None,
-                           tblname=None):
+                           tblname=None, **kwargs):
     '''
     Purpose: create plots and calculate result table 
 
-    Inputs: mydb with weights and sysperformance
+    Inputs: mydb with weights, data rates, and system performance
 
     Output:
         if pltname:
                 plot showing fraction at each data rate
 
         if tblname:
-                csv file giving fraction, data rate, and sysperformance in each bin
+                csv file giving fraction, data rate in each bin
 
     Date        Programmer      Description of Changes
     ------------------------------------------------------------------------
@@ -1114,41 +1106,30 @@ def create_soc_result_plot(mydb,
 
     
     '''
-
-    perf_factor = 5.66 # (PFLOPS/s) / (GB/s). Empirical value from Table 7.
-
-    if datarate_type not in mydb.columns:
-        print("Column not found in database: "+datarate_type)
+    import re
+    
+    if data_val not in mydb.columns:
+        print("Column not found in database: "+data_val)
         return
 
     if bin_min < 0:
-        bin_min = np.min(mydb[datarate_type]).value
+        bin_min = np.min(mydb[data_val]).value
 
     if bin_max < 0:
-        bin_max = np.max(mydb[datarate_type]).value
+        bin_max = np.max(mydb[data_val]).value
     
     # nbin+1 not nbin to take care of fence post 
     mybins = np.linspace(bin_min,bin_max,nbin+1)
 
     fig, ax1 = plt.subplots()
     
-    myhist = ax1.hist(mydb[datarate_type].value,bins=mybins,
-                      weights=mydb['weights_all'])
-    
-        
-    mybinvals = myhist[0]
+    myhist = ax1.hist(mydb[data_val].value,bins=mybins,
+                      weights=mydb['weights_all'], **kwargs)
 
-
-    # set up the other axis. This isn't perfect since it contains all bins, not just the ones with the tick marks
-    ax2 = ax1.twiny()    
-    ax2.set_xlim(ax1.get_xlim())
-    ax2.set_xticks(mybins)
-
-    mybins_sysperf = mybins * perf_factor    
-    ax2.set_xticklabels(["{:4.2f}".format(i) for i in mybins_sysperf])
-
-    ax1.set_xlabel('Data rate (GB/s)')
-    ax2.set_xlabel('System Performance (PFLOP/s)')
+    if re.search('sysperf',data_val):
+        ax1.set_xlabel('System Performance (PFLOP/s)')
+    elif re.search('datarate',data_val):
+        ax1.set_xlabel('Data rate (GB/s)')
 
     ax1.set_ylabel('Fraction of time')
 
@@ -1160,8 +1141,51 @@ def create_soc_result_plot(mydb,
 
     ## TODO: create data to save into table?
     
-        
-        
+
+
+
+
+def calc_wsu_sysperf_stats(mydb, stages = ['early','later_2x','later_4x']):
+    '''
+    Purpose: calculate statistics for WSU Fidicual Properties
+
+    Output: dictionary
+    
+    
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    1/25/2023   A.A. Kepley     Original code
+    
+    '''
+
+
+    mystats = {}
+    mystats['12m']  = {}
+    mystats['7m']  = {}
+
+    allresults = []
+
+    results = {}
+    results['stage'] = 'blc'
+    
+    results['median'] =  np.median(mydb['blc_sysperf_typical'])
+    results['wavg']  = np.average(mydb['blc_sysperf_typical'], weights=mydb['weights_all'])
+    results['max']= np.max(mydb['blc_sysperf_typical'])
+
+    allresults.append(results)
+    
+    for mystage in stages:
+        results = {}
+        results['stage'] = mystage
+        results['median'] = np.median(mydb['wsu_sysperf_'+mystage+'_stepped2_typical'])
+        results['wavg'] = np.average(mydb['wsu_sysperf_'+mystage+'_stepped2_typical'],weights=mydb['weights_all'])
+        results['max'] = np.max(mydb['wsu_sysperf_'+mystage+'_stepped2_typical'])
+
+        allresults.append(results)
+
+    return allresults
+
+    
     
 def create_db_for_sanjay(mydb,filename='data/test.csv'):
     '''
