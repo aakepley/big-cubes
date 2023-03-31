@@ -10,8 +10,8 @@ reload(large_cubes)
 gvis = u.def_unit('Gvis',namespace=globals())
 u.add_enabled_units([gvis])
 
-result_c7_mous = QTable.read('data/wsu_datarates_mit_per_mous_cycle7_20230128.ecsv')
-result_c8_mous = QTable.read('data/wsu_datarates_mit_per_mous_cycle8_20230128.ecsv')
+result_c7_mous = QTable.read('data/wsu_datarates_mit_per_mous_cycle7_20230321.ecsv')
+result_c8_mous = QTable.read('data/wsu_datarates_mit_per_mous_cycle8_20230321.ecsv')
 
 result_mous = vstack([result_c7_mous,result_c8_mous])
 

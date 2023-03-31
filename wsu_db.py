@@ -1,9 +1,11 @@
+
 from astropy.table import Table, QTable, join, unique
 import numpy as np
 import astropy.units as u
 from astropy import constants as const
 import math
 import ipdb
+import matplotlib.pyplot as plt
 
 def calc_talon_specwidth(specwidth):
     '''
@@ -53,6 +55,8 @@ def create_database(cycle7tab):
     proposal_id_list = []
     schedblock_name_list = []
     array_list = []
+    science_keyword_list = []
+    scientific_category_list = []
 
     # basic observing info
     ntarget_list = []
@@ -152,9 +156,9 @@ def create_database(cycle7tab):
             schedblock_name = np.unique(cycle7tab[idx]['schedblock_name'])
             schedblock_name_list.append(schedblock_name)
             
-            # array info
+            # array info & WSU tint
             array_list.append(array)
-            
+                       
             if array == '12m':
                 nant_typical = 47
                 nant_array = 54
@@ -171,10 +175,22 @@ def create_database(cycle7tab):
             nant_all_list.append(nant_all)
             wsu_tint_list.append(wsu_tint)
             
+            # science keyword info
+            ## These are the keywords selected by the PI
+            science_keyword = np.unique(cycle7tab[idx]['science_keyword'])
+            science_keyword_list.append(science_keyword)
+
+            # scientific category
+            ## These do not correspond to the 5 science categories exactly.
+            ## Categories 1 (Cosmology and the high redshift universe) and 2 (galaxies and galactic nuclei)
+            ## are separated depending on input keyword. I think I should be able to map to the
+            ## five "official" categories based on the keywords.
+            scientific_category = np.unique(cycle7tab[idx]['scientific_category'])
+            scientific_category_list.append(scientific_category)
+
             # FOV
             s_fov = np.mean(cycle7tab[idx]['s_fov']) 
             s_fov_list.append(s_fov)
-            
             
             # Resolution
             s_resolution = np.mean(cycle7tab[idx]['s_resolution'])
@@ -387,6 +403,7 @@ def create_database(cycle7tab):
     
     # put together table
     if_mous_tab = QTable([np.squeeze(if_mous_list), np.squeeze(proposal_id_list), np.squeeze(schedblock_name_list),np.squeeze(array_list), 
+                          np.squeeze(science_keyword_list), np.squeeze(scientific_category_list),
                           np.squeeze(nant_typical_list), np.squeeze(nant_array_list), np.squeeze(nant_all_list), 
                           np.squeeze(band_list_array), np.squeeze(ntarget_list), np.squeeze(target_name_list),
                           np.squeeze(s_fov_list), np.squeeze(s_resolution_list), np.squeeze(mosaic_list),
@@ -402,6 +419,7 @@ def create_database(cycle7tab):
                           np.squeeze(wsu_specwidth_stepped2), np.squeeze(wsu_chanavg_stepped2), np.squeeze(wsu_velres_stepped2),
                           np.squeeze(wsu_tint_list)],
                          names=('mous','proposal_id','schedblock_name','array',
+                                'science_keyword','scientific_category',
                                 'nant_typical','nant_array','nant_all',
                                 'band','ntarget','target_name',
                                 's_fov','s_resolution','mosaic',
@@ -1033,7 +1051,6 @@ def join_wsu_and_mit_dbs(mous_db,mit_db):
     for mykey in ['totaltime','imgtime','cubetime','aggtime','fctime','caltime']:
         mous_mit_db.rename_column(mykey,'pl_'+mykey)
 
-
     return mous_mit_db
 
 def predict_pl_timings(mydb):
@@ -1062,4 +1079,157 @@ def predict_pl_timings(mydb):
             mydb['wsu_pl_totaltime_'+stage+'_mit'] = mydb['wsu_pl_caltime_'+stage] + mydb['wsu_pl_imgtime_'+stage+'_mit']
             
 
+        
+def create_soc_result_plot(mydb,
+                           bin_min=-1,
+                           bin_max=-1,   
+                           nbin=10,
+                           data_val = 'blc_datarate_typical', 
+                           title='',
+                           pltname=None,
+                           tblname=None, **kwargs):
+    '''
+    Purpose: create plots and calculate result table 
 
+    Inputs: mydb with weights, data rates, and system performance
+
+    Output:
+        if pltname:
+                plot showing fraction at each data rate
+
+        if tblname:
+                csv file giving fraction, data rate in each bin
+
+    Date        Programmer      Description of Changes
+    ------------------------------------------------------------------------
+    2/27/2023   A.A. Kepley     Original Code
+
+    
+    '''
+    import re
+    
+    if data_val not in mydb.columns:
+        print("Column not found in database: "+data_val)
+        return
+
+    if bin_min < 0:
+        bin_min = np.min(mydb[data_val]).value
+
+    if bin_max < 0:
+        bin_max = np.max(mydb[data_val]).value
+    
+    # nbin+1 not nbin to take care of fence post 
+    mybins = np.linspace(bin_min,bin_max,nbin+1)
+
+    fig, ax1 = plt.subplots()
+    
+    myhist = ax1.hist(mydb[data_val].value,bins=mybins,
+                      weights=mydb['weights_all'], **kwargs)
+
+    if re.search('sysperf',data_val):
+        ax1.set_xlabel('System Performance (PFLOP/s)')
+    elif re.search('datarate',data_val):
+        ax1.set_xlabel('Data rate (GB/s)')
+
+    ax1.set_ylabel('Fraction of time')
+
+    ax1.set_title(title)
+
+    
+    if pltname:
+        plt.savefig(pltname)
+
+    ## TODO: create data to save into table?
+    
+
+
+
+
+def calc_wsu_sysperf_stats(mydb, stages = ['early','later_2x','later_4x']):
+    '''
+    Purpose: calculate statistics for WSU Fidicual Properties
+
+    Output: dictionary
+    
+    
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    1/25/2023   A.A. Kepley     Original code
+    
+    '''
+
+
+    mystats = {}
+    mystats['12m']  = {}
+    mystats['7m']  = {}
+
+    allresults = []
+
+    results = {}
+    results['stage'] = 'blc'
+    
+    results['median'] =  np.median(mydb['blc_sysperf_typical'])
+    results['wavg']  = np.average(mydb['blc_sysperf_typical'], weights=mydb['weights_all'])
+    results['max']= np.max(mydb['blc_sysperf_typical'])
+
+    allresults.append(results)
+    
+    for mystage in stages:
+        results = {}
+        results['stage'] = mystage
+        results['median'] = np.median(mydb['wsu_sysperf_'+mystage+'_stepped2_typical'])
+        results['wavg'] = np.average(mydb['wsu_sysperf_'+mystage+'_stepped2_typical'],weights=mydb['weights_all'])
+        results['max'] = np.max(mydb['wsu_sysperf_'+mystage+'_stepped2_typical'])
+
+        allresults.append(results)
+
+    return allresults
+
+    
+    
+def create_db_for_sanjay(mydb,filename='data/test.csv'):
+    '''
+    Purpose:
+
+    Inputs: mydb
+
+    Output: csv file with values that Sanjay has requested.
+        * fraction X
+        * array X 
+        * dump time X 
+        * channel size X
+        * number of channels X
+        * number of spws X
+        * image linear size X
+        * number of baselines X
+        * visibility rate (vis/hr) X
+        * fractional bandwidth X 
+        * multi-term ??
+        * data rate X
+        * required system performance X ???
+
+    Method: Take data base and output a sub-set of relevant columns to csv.
+   
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    2/27/2023   A.A. Kepley     Original Code
+    '''
+
+    mycols = ['mous','proposal_id','schedblock_name', ## proposal info
+              'weights_all', # fraction of total cycle 7 and 8 time spend observing
+              'array','nant_typical','nbase_typical', 'L80',## array information
+              'imsize','cell','mosaic', ## image information
+              'wsu_freq','wsu_npol','wsu_tint', ## basic correlator info
+              'wsu_bandwidth_spw', 'wsu_specwidth_stepped2','wsu_nchan_spw_stepped2',  'wsu_frac_bw_spw', # SPW properties
+              'wsu_nspw_early','wsu_nspw_later_2x','wsu_nspw_later_4x', # nspws
+              'wsu_bandwidth_early','wsu_bandwidth_later_2x','wsu_bandwidth_later_4x', #bandwidth
+              'wsu_frac_bw_early','wsu_frac_bw_later_2x','wsu_frac_bw_later_4x', #fractional BW
+              'wsu_datarate_early_stepped2_typical','wsu_datarate_later_2x_stepped2_typical','wsu_datarate_later_4x_stepped2_typical',
+              'wsu_visrate_early_stepped2_typical','wsu_visrate_later_2x_stepped2_typical','wsu_visrate_later_4x_stepped2_typical',
+              'wsu_sysperf_early','wsu_sysperf_later_2x','wsu_sysperf_later_4x']
+
+    
+    mydb[mycols].write(filename)
+         
+    
+    pass
