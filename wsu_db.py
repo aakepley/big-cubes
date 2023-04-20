@@ -344,9 +344,11 @@ def create_database(cycle7tab):
             # but at beginning only band 6 and band 2 will be upgraded. Band 2 is under dev now, so no band 2 in cycle 7.
             if band_list == 6:
                 bw = 16.0
-            elif (band_list >= 3) & (band_list <= 8) & (band_list != 6):
+            elif (band_list >= 3) & (band_list <= 7) :
                 bw = 8.0
-            elif (band_list >= 9 & band_list <= 10):
+            # adding band 8 to early WSU
+            elif (band_list >= 8 & band_list <= 10): 
+            #elif (band_list >= 9 & band_list <= 10):
                 bw = 16.0
             else:
                 print('Band not recognized for MOUS: ' + mymous)
@@ -1079,70 +1081,312 @@ def predict_pl_timings(mydb):
             mydb['wsu_pl_totaltime_'+stage+'_mit'] = mydb['wsu_pl_caltime_'+stage] + mydb['wsu_pl_imgtime_'+stage+'_mit']
             
 
-        
-def create_soc_result_plot(mydb,
-                           bin_min=-1,
-                           bin_max=-1,   
-                           nbin=10,
-                           data_val = 'blc_datarate_typical', 
-                           title='',
-                           pltname=None,
-                           tblname=None, **kwargs):
+
+def calc_wsu_stats(mydb,stage='early'):
     '''
-    Purpose: create plots and calculate result table 
+    Purpose: calculate statistics for WSU Fidicual Properties
 
-    Inputs: mydb with weights, data rates, and system performance
+    Output: dictionary
+    
+    
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    1/25/2023   A.A. Kepley     Original code
+    
+    '''
 
-    Output:
-        if pltname:
-                plot showing fraction at each data rate
 
-        if tblname:
-                csv file giving fraction, data rate in each bin
+    mystats = {}
+    mystats['12m']  = {}
+    mystats['7m']  = {}
+
+    
+    for array in ['12m','7m']:
+        idx = mydb['array'] == array
+
+        # select only the array I want
+        mydb_arr = mydb[idx]
+
+        # list of values to calculate
+        val_list = ['datarate','nchan_agg','nchan_spw','datavol','cubesize','productsize']
+
+        for myval in val_list:
+            if myval == 'datarate':
+                wsu_vals = mydb_arr['wsu_datarate_'+stage+'_stepped2_typical']
+                blc_vals =  mydb_arr['blc_datarate_typical']
+            elif myval == 'nchan_agg':
+                wsu_vals = mydb_arr['wsu_nchan_spw_stepped2'] * mydb_arr['wsu_nspw_'+stage]
+                blc_vals = mydb_arr['blc_nchan_agg'] / mydb_arr['blc_ntunings']
+            elif myval == 'nchan_spw':
+                wsu_vals = mydb_arr['wsu_nchan_spw_stepped2']
+                blc_vals = mydb_arr['blc_nchan_max']
+            elif myval == 'datavol':
+                wsu_vals = mydb_arr['wsu_datavol_'+stage+'_stepped2_typical_total']
+                blc_vals =  mydb_arr['blc_datavol_typical_total']
+            elif myval == 'cubesize':
+                wsu_vals = mydb_arr['wsu_cubesize_stepped2']
+                blc_vals = mydb_arr['blc_cubesize']
+            elif myval == 'productsize':
+                wsu_vals = mydb_arr['wsu_productsize_'+stage+'_stepped2']
+                blc_vals = mydb_arr['blc_productsize']
+            else:
+                print("Skipping. Value not recognized: " + myval)
+                continue
+
+            myweights = mydb_arr['time_tot'].value / np.sum(mydb_arr['time_tot'].value)            
+
+            # standard values
+            mystats[array]['wsu_'+myval+'_min'] = np.min(wsu_vals)
+            mystats[array]['wsu_'+myval+'_median'] = np.median(wsu_vals)
+            mystats[array]['wsu_'+myval+'_max'] = np.max(wsu_vals)
+            mystats[array]['wsu_'+myval+'_75p'] = np.percentile(wsu_vals,0.75)
+            mystats[array]['wsu_'+myval+'_avg']  = np.ma.average(wsu_vals)
+            mystats[array]['wsu_'+myval+'_wavg']  = np.ma.average(wsu_vals,
+                                                                  weights=myweights)
+            
+            mystats[array]['blc_'+myval+'_min'] = np.min(blc_vals)
+            mystats[array]['blc_'+myval+'_median'] = np.median(blc_vals)
+            mystats[array]['blc_'+myval+'_max'] = np.max(blc_vals)
+            mystats[array]['blc_'+myval+'_75p'] = np.percentile(blc_vals,0.75)
+            mystats[array]['blc_'+myval+'_avg']  = np.ma.average(blc_vals)
+            mystats[array]['blc_'+myval+'_wavg']  = np.ma.average(blc_vals,
+                                                                  weights=myweights)
+
+            # also calculate total if appropriate
+            if myval in ['datavol','productsize']:
+                mystats[array]['wsu_'+myval+'_tot'] = np.ma.sum(wsu_vals)
+                mystats[array]['blc_'+myval+'_tot'] = np.ma.sum(blc_vals)
+                mystats[array]['time_tot'] = np.ma.sum(mydb_arr['time_tot'].to('yr'))
+        
+    return mystats
+    
+
+def make_wsu_stats_table(mystats, fileout='test.csv'):
+    '''
+    Purpose: Make CSV table of WSU stats
+
+    Input: my stats
+
+    Output: cvs table of WSU stats
 
     Date        Programmer      Description of Changes
-    ------------------------------------------------------------------------
-    2/27/2023   A.A. Kepley     Original Code
-
-    
+    --------------------------------------------------
+    1/25/2023   A.A. Kepley     Original Code
     '''
-    import re
+
+    import csv
     
-    if data_val not in mydb.columns:
-        print("Column not found in database: "+data_val)
-        return
+    with open (fileout,'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        
+        writer.writerow(['', '', '', '12m','','','7m','',''])
+        writer.writerow(['Value', 'Statistic', 'Unit', 'WSU','BLC', 'WSU/BLC', 'WSU', 'BLC', 'WSU/BLC']) 
 
-    if bin_min < 0:
-        bin_min = np.min(mydb[data_val]).value
+        for mycat  in ['datarate','nchan_agg','nchan_spw','datavol','cubesize','productsize']:
+            if mycat == 'datarate':
+                mylabel = 'Data Rates'
+            elif mycat == 'nchan_agg':
+                mylabel = 'Aggregate Nchan (per tuning)'
+            elif mycat == 'nchan_spw':
+                mylabel = 'Nchan per SPW'
+            elif mycat == 'datavol':
+                mylabel = 'Visibility Data Volume'
+            elif mycat == 'cubesize':                
+                mylabel = 'Cube size'
+            elif mycat == 'productsize':
+                mylabel = 'Product size'
+                
+            if (mycat == 'datavol') | (mycat == 'productsize'):
+                #val_list = ['min','median','avg','wavg','75p','max','tot']
+                val_list = ['median','wavg','max','tot']
+            else:
+                #val_list = ['min','median','avg','wavg','75p','max']
+                val_list = ['median','wavg','max']
+                
+            for myval in val_list:
 
-    if bin_max < 0:
-        bin_max = np.max(mydb[data_val]).value
+                if myval == 'wavg':
+                    outval = 'Time-Weighted Average'
+                elif myval == 'median':
+                    outval = 'Median'
+                elif myval == 'max':
+                    outval = 'Maximum'
+                elif myval == 'tot':
+                    outval = 'Total (1 cycle)'
+                    
+                    
+                if mycat == 'datarate':
+
+                    outunit = u.GB / u.s
+                    
+                    writer.writerow([mylabel, outval, outunit.to_string(),
+                                     '{0:7.3g}'.format(mystats['12m']['wsu_'+mycat+'_'+myval].to(outunit).value),
+                                     '{0:7.3g}'.format(mystats['12m']['blc_'+mycat+'_'+myval].to(outunit).value),
+                                     '{0:4.1f}'.format(mystats['12m']['wsu_'+mycat+'_'+myval]/mystats['12m']['blc_'+mycat+'_'+myval]),
+                                     '{0:7.3g}'.format(mystats['7m']['wsu_'+mycat+'_'+myval].to(outunit).value),
+                                     '{0:7.3g}'.format(mystats['7m']['blc_'+mycat+'_'+myval].to(outunit).value),
+                                     '{0:4.1f}'.format(mystats['7m']['wsu_'+mycat+'_'+myval]/mystats['7m']['blc_'+mycat+'_'+myval])])
+
+                    mylabel = ''
+                    
+                elif mycat == 'datavol':
+
+                    if myval == 'tot':
+                        outunit = u.PB
+                        div_factor = 2 ## divide by two to get one cycle
+                    else:
+                        outunit = u.TB
+                        div_factor = 1
+                        
+                    writer.writerow([mylabel, outval, outunit.to_string(), 
+                                     '{0:7.3g}'.format(mystats['12m']['wsu_'+mycat+'_'+myval].to(outunit).value/div_factor),
+                                     '{0:7.3g}'.format(mystats['12m']['blc_'+mycat+'_'+myval].to(outunit).value/div_factor),
+                                     '{0:4.1f}'.format(mystats['12m']['wsu_'+mycat+'_'+myval]/mystats['12m']['blc_'+mycat+'_'+myval]),
+                                     '{0:7.3g}'.format(mystats['7m']['wsu_'+mycat+'_'+myval].to(outunit).value/div_factor),
+                                     '{0:7.3g}'.format(mystats['7m']['blc_'+mycat+'_'+myval].to(outunit).value/div_factor),
+                                     '{0:4.1f}'.format(mystats['7m']['wsu_'+mycat+'_'+myval]/mystats['7m']['blc_'+mycat+'_'+myval])])
+                    mylabel = ''
+
+                    
+                elif mycat == 'cubesize':
+
+                    outunit = u.TB
+                        
+                    writer.writerow([mylabel, outval, outunit.to_string(), 
+                                     '{0:7.3g}'.format(mystats['12m']['wsu_'+mycat+'_'+myval].to(outunit).value),
+                                     '{0:7.3g}'.format(mystats['12m']['blc_'+mycat+'_'+myval].to(outunit).value),
+                                     '{0:4.1f}'.format(mystats['12m']['wsu_'+mycat+'_'+myval]/mystats['12m']['blc_'+mycat+'_'+myval]),
+                                     '{0:7.3g}'.format(mystats['7m']['wsu_'+mycat+'_'+myval].to(outunit).value),
+                                     '{0:7.3g}'.format(mystats['7m']['blc_'+mycat+'_'+myval].to(outunit).value),
+                                     '{0:4.1f}'.format(mystats['7m']['wsu_'+mycat+'_'+myval]/mystats['7m']['blc_'+mycat+'_'+myval])])
+                    mylabel = ''
+                    
+                elif mycat == 'productsize':
+                    if myval == 'tot':
+                        outunit = u.PB
+                        div_factor = 2 ## divide by two to get one cycle
+                    else:
+                        outunit = u.TB
+                        div_factor = 1
+                    
+                    writer.writerow([mylabel, outval, outunit.to_string(), 
+                                     '{0:7.3g}'.format(mystats['12m']['wsu_'+mycat+'_'+myval].to(outunit).value/div_factor),
+                                     '{0:7.3g}'.format(mystats['12m']['blc_'+mycat+'_'+myval].to(outunit).value/div_factor),
+                                     '{0:4.1f}'.format(mystats['12m']['wsu_'+mycat+'_'+myval]/mystats['12m']['blc_'+mycat+'_'+myval]),
+                                     '{0:7.3g}'.format(mystats['7m']['wsu_'+mycat+'_'+myval].to(outunit).value/div_factor),
+                                     '{0:7.3g}'.format(mystats['7m']['blc_'+mycat+'_'+myval].to(outunit).value/div_factor),
+                                     '{0:4.1f}'.format(mystats['7m']['wsu_'+mycat+'_'+myval]/mystats['7m']['blc_'+mycat+'_'+myval])])
+                    mylabel = ''
+                    
+                elif mycat == 'nchan_spw':
+
+                    myunit = ''
+                    writer.writerow([mylabel, outval,myunit,
+                                     '{0:7.0f}'.format(mystats['12m']['wsu_'+mycat+'_'+myval]),
+                                     '{0:7.0f}'.format(mystats['12m']['blc_'+mycat+'_'+myval]),
+                                     '{0:4.1f}'.format(mystats['12m']['wsu_'+mycat+'_'+myval]/mystats['12m']['blc_'+mycat+'_'+myval]),
+                                     '{0:7.0f}'.format(mystats['7m']['wsu_'+mycat+'_'+myval]),
+                                     '{0:7.0f}'.format(mystats['7m']['blc_'+mycat+'_'+myval]),
+                                     '{0:4.1f}'.format(mystats['7m']['wsu_'+mycat+'_'+myval]/mystats['7m']['blc_'+mycat+'_'+myval])])
+                    mylabel = ''
+                    
+                elif mycat == 'nchan_agg':
+                    myunit = ''
+                    writer.writerow([mylabel, outval, myunit,                                     
+                                     '{0:7.0f}'.format(mystats['12m']['wsu_'+mycat+'_'+myval]),
+                                     '{0:7.0f}'.format(mystats['12m']['blc_'+mycat+'_'+myval]),
+                                     '{0:4.1f}'.format(mystats['12m']['wsu_'+mycat+'_'+myval]/mystats['12m']['blc_'+mycat+'_'+myval]),
+                                     '{0:7.0f}'.format(mystats['7m']['wsu_'+mycat+'_'+myval]),
+                                     '{0:7.0f}'.format(mystats['7m']['blc_'+mycat+'_'+myval]),
+                                     '{0:4.1f}'.format(mystats['7m']['wsu_'+mycat+'_'+myval]/mystats['7m']['blc_'+mycat+'_'+myval])])
+                    
+
+                    mylabel = ''
+                    
+                else:
+                    myunit = ''
+                    writer.writerow([mylabel, outval, myunit,
+                                     mystats['12m']['wsu_'+mycat+'_'+myval],
+                                     mystats['12m']['blc_'+mycat+'_'+myval],
+                                     mystats['12m']['wsu_'+mycat+'_'+myval]/mystats['12m']['blc_'+mycat+'_'+myval],
+                                     mystats['7m']['wsu_'+mycat+'_'+myval],
+                                     mystats['7m']['blc_'+mycat+'_'+myval],
+                                     mystats['7m']['wsu_'+mycat+'_'+myval]/mystats['7m']['blc_'+mycat+'_'+myval]])
+                
+
+def make_mitigation_stats_table(mydb, maxcubesize=40*u.GB,
+                                maxcubelimit=60*u.GB,
+                                maxproductsize=500*u.GB):
+    '''
+    Purpose: calculate mitigation statistics for WSU
+
+    Date        Programmer      Description of Changes
+    -----------------------------------------------
+    1/26/2023   A.A. Kepley     Original Code
+    '''
+
+    print("maxcubesize: " + maxcubesize.to_string())
+    print("maxcubelimit: " + maxcubelimit.to_string())
+    print("maxproductsize: " + maxproductsize.to_string())
+
+    print("\n")
+
+    nmous = float(len(mydb))
+
+    print("For all stages:")
+
+    myval = np.sum(mydb['wsu_cubesize_stepped2_mit'] > maxcubelimit)
+    print("Percent of MOUSes that will fail on cubesize, assuming mitigation: {:5.2f}".format(100*myval/nmous))
     
-    # nbin+1 not nbin to take care of fence post 
-    mybins = np.linspace(bin_min,bin_max,nbin+1)
+    myval = np.sum(mydb['wsu_cubesize_stepped2'] > maxcubelimit)
+    print("Percent of MOUSes that will fail on cubesize, assuming no mitigation: {:5.2f}".format(100*myval/nmous))
 
-    fig, ax1 = plt.subplots()
+    myval = np.sum(mydb['wsu_cubesize_stepped2_mit'] > maxproductsize)
+    print("Percent of MOUSes with single cube size greater than productsize, assuming mitigation: {:5.2f}".format(100*myval/nmous))
     
-    myhist = ax1.hist(mydb[data_val].value,bins=mybins,
-                      weights=mydb['weights_all'], **kwargs)
-
-    if re.search('sysperf',data_val):
-        ax1.set_xlabel('System Performance (PFLOP/s)')
-    elif re.search('datarate',data_val):
-        ax1.set_xlabel('Data rate (GB/s)')
-
-    ax1.set_ylabel('Fraction of time')
-
-    ax1.set_title(title)
+    myval = np.sum(mydb['wsu_cubesize_stepped2'] > maxproductsize)
+    print("Percent of MOUSes with single cube size greater than productsize, assuming no mitigation: {:5.2f}".format(100*myval/nmous))
 
     
-    if pltname:
-        plt.savefig(pltname)
+    
+    print("\n")
+    print("early + mitigation:")
+    
+    myval1 = np.sum((mydb['wsu_productsize_early_stepped2_mit'] > maxproductsize) & 
+                   (mydb['wsu_cubesize_stepped2_mit'] < maxcubelimit))
+    print("Percent of MOUSes that will fail productsize (only) assuming mitigation: {:5.2f}".format(100*myval1 / nmous))
 
-    ## TODO: create data to save into table?
+    myval2 = np.sum((mydb['wsu_productsize_early_stepped2_mit'] < maxproductsize) & 
+                                    (mydb['wsu_cubesize_stepped2_mit'] > maxcubelimit))
+    print("Percent of MOUSes that will fail cubesize (only) assuming mitigation: {:5.2f}".format(100*myval2/nmous))
+
+    myval3 = np.sum((mydb['wsu_productsize_early_stepped2_mit'] > maxproductsize ) & 
+                   (mydb['wsu_cubesize_stepped2_mit'] > maxcubelimit))
+    print("Percent of MOUSes that will fail on cube and productsize assuming mitigation: {:5.2f}".format(100*myval3/nmous))
+
+    myval4 = myval1 + myval2+ myval3
+    print("Total Percentage of MOUSes failing mitigation: {:5.2f}".format(100*myval4/nmous))
+    
+    for stage in ['early','later_2x', 'later_4x']:
+        print("\n")
+        print(stage+':')
+        myval1 = np.sum((mydb['wsu_productsize_'+stage+'_stepped2'] > maxproductsize) & 
+                       (mydb['wsu_cubesize_stepped2'] < maxcubelimit))
+        print("Percent of MOUSes that will fail productsize (only) assuming NO mitigation: {:5.2f}".format(100*myval1 / nmous))
+        
+        myval2 = np.sum((mydb['wsu_productsize_'+stage+'_stepped2'] < maxproductsize) & 
+                       (mydb['wsu_cubesize_stepped2'] > maxcubesize))
+        print("Percent of MOUSes that will fail cubesize (only) assuming NO mitigation: {:5.2f}".format(100*myval2/nmous))
+        
+        myval3 = np.sum((mydb['wsu_productsize_'+stage+'_stepped2'] > maxproductsize) & 
+                       (mydb['wsu_cubesize_stepped2'] > maxcubesize))
+        print("Percent of MOUSes that will fail on cube and productsize assuming NO mitigation: {:5.2f}".format(100*myval3/nmous))
+          
+        myval4 = myval1 + myval2+ myval3
+        print("Total Percentage of MOUSes failing mitigation: {:5.2f}".format(100*myval4/nmous))
     
 
-
+                
 
 
 def calc_wsu_sysperf_stats(mydb, stages = ['early','later_2x','later_4x']):
@@ -1185,7 +1429,7 @@ def calc_wsu_sysperf_stats(mydb, stages = ['early','later_2x','later_4x']):
 
     return allresults
 
-    
+   
     
 def create_db_for_sanjay(mydb,filename='data/test.csv'):
     '''
