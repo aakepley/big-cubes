@@ -1253,6 +1253,7 @@ def plot_soc_result_hist(mydb,
                          nbin=10,
                          data_val = 'blc_sysperf_typical', 
                          title='',
+                         add_wavg=False,
                          pltname=None):
     '''
     Purpose: create plots and calculate result table 
@@ -1308,8 +1309,19 @@ def plot_soc_result_hist(mydb,
                       color=mycolor,
                       weights=mydb['weights_all'])
 
+    ax1.set_ylim((0,1))
+
+    if add_wavg:
+        wavg = np.average(mydb[data_val],weights=mydb['weights_all'])
+        ax1.axvline(wavg, color='black',linestyle=':',
+                 label='Weighted Average')
+        ax1.text(wavg+wavg*0.1,0.7, '{:5.2e} PFLOP/s'.format(wavg),
+                 horizontalalignment='left',size=12)
+        # TODO: Add text here to label?
+                    
     ax1.set_xlabel('System Performance (PFLOP/s)')
     ax1.set_ylabel('Fraction of time')
+    ax1.legend()
 
     ax1.set_title(title)
     
@@ -1320,6 +1332,8 @@ def plot_soc_result_hist(mydb,
 
 def plot_soc_result_cumulative(mydb,
                                plot_title="System Performance",
+                               add_wavg=False,
+                               add_band2_specscan = None,
                                figname=None):
 
     '''
@@ -1344,48 +1358,124 @@ def plot_soc_result_cumulative(mydb,
              bins=mybins,
              log=True,
              density=True,
-             color='#1f77b4',             
-             label='BLC')
+             color='#1f77b4',
+             linewidth=2,
+             label='BLC (unmitigated)')
 
-    
+    if add_wavg:
+        wavg = np.average(mydb['blc_sysperf_typical'],weights=mydb['weights_all'])
+        plt.axvline(np.log10(wavg), color='#1f77b4', linestyle=':')
+        #plt.text(np.log10(wavg)+0.05,0.012,'{:5.2e} \nPFLOP/s'.format(wavg),
+        #         color='#1f77b4')
+
+
+    idx = mydb['wsu_datarate_early_stepped2_typical'] < 0.5 * u.GB /u.s
+    plt.hist(np.log10(mydb['wsu_sysperf_early_stepped2_typical'][idx]), cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             color='#ff7f0e',
+             linestyle=':',linewidth=2,
+             label='early WSU \n(<500 MB/s)',)
+     
+        
     plt.hist(np.log10(mydb['wsu_sysperf_early_stepped2_typical']), cumulative=-1, histtype='step',
              bins=mybins,
              log=True,
              density=True,
              color='#ff7f0e',
+             linewidth=2,
              label='early WSU')
 
+    if add_wavg:
+        wavg = np.average(mydb['wsu_sysperf_early_stepped2_typical'],weights=mydb['weights_all'])
+        plt.axvline(np.log10(wavg), color='#ff7f0e', linestyle=':')
+        #plt.text(np.log10(wavg)+0.05,0.0055,'{:5.2e} \nPFLOP/s'.format(wavg),
+        #         color='#ff7f0e')
+
+    
     plt.hist(np.log10(mydb['wsu_sysperf_later_2x_stepped2_typical']), cumulative=-1, histtype='step',
              bins=mybins,
              log=True,
              density=True,
              color='#2ca02c',
+             linewidth=2,
              label='later WSU (2x)')
+
     
+    if add_wavg:
+        wavg = np.average(mydb['wsu_sysperf_later_2x_stepped2_typical'],weights=mydb['weights_all'])
+        plt.axvline(np.log10(wavg), color='#2ac02c', linestyle=':')
+        #plt.text(np.log10(wavg)+0.05,0.0026,'{:5.2e} \nPFLOP/s'.format(wavg),
+        #         color='#2ca02c')
+                
 
     plt.hist(np.log10(mydb['wsu_sysperf_later_4x_stepped2_typical']), cumulative=-1, histtype='step',
              bins=mybins,
              log=True,
              density=True,
              color = '#d62728',
+             linewidth=2,
              label='later WSU (4x)')
+    
+    
+    if add_wavg:
+        wavg = np.average(mydb['wsu_sysperf_later_4x_stepped2_typical'],weights=mydb['weights_all'])
+        plt.axvline(np.log10(wavg), color='#d62728', linestyle=':')
+        #plt.text(np.log10(wavg)+0.05,0.0013,'{:5.2e} \nPFLOP/s'.format(wavg),
+        #         color='#d62728')
+
+    if add_band2_specscan is not None:
+        nant = 47
+        npol = 2
+        tint = 3.024
+        nchan_2x = 595200
+        nchan_4x = 1041600
+        
+        visrate_2x = 2.0 * (nant * (nant - 1 ) / 2.0 ) * nchan_2x * npol / tint
+        visrate_4x = 2.0 * (nant * (nant - 1 ) / 2.0 ) * nchan_4x * npol / tint
+
+        k = 20
+        core_efficiency = 0.05
+        parallelization_efficiency = 0.8
+        
+        if add_band2_specscan == 'standard':
+            cl = 1280.8
+        elif add_band2_specscan == 'aproject':
+            cl = 7472.8
+        else:
+            print("don't understand add_band2_specscan parameter: ")
+
+        sp_band2_2x = visrate_2x * cl * k / (core_efficiency * parallelization_efficiency) /1e15
+        print("System Performance for Band 2 Spectral Scan (2x) :", sp_band2_2x)
+        sp_band2_4x = visrate_4x * cl * k / (core_efficiency * parallelization_efficiency) /1e15
+        print("System Performance for Band 2 Spectral Scan (4x) :", sp_band2_4x)
+
+        plt.axvline(np.log10(sp_band2_2x),color='black',linestyle='--', label='Band 2 \nSpectral Scan (2x)')
+        plt.axvline(np.log10(sp_band2_4x), color='black', linestyle='-.', label='Band 2 \nSpectral Scan (4x)')
 
     plt.axhline(0.1,color='gray',linestyle=':')
-    plt.text(0,0.1,'90% smaller')
+    plt.text(-2.7,0.1,'90% smaller')
 
     plt.axhline(0.05,color='gray',linestyle=':')
-    plt.text(0,0.05,'95% smaller')
+    plt.text(-2.7,0.05,'95% smaller')
 
     plt.axhline(0.01,color='gray',linestyle=':')
-    plt.text(0,0.01,'99% smaller')
+    plt.text(-2.7,0.01,'99% smaller')
 
     plt.grid(which='both',axis='both',linestyle=':')
     
-    plt.xlabel('log (System Performance (PFLOP/s))')
+    plt.xlabel('System Performance (PFLOP/s)')
     plt.ylabel('Fraction of Larger Data')
 
     plt.title(plot_title)
     plt.legend(loc='lower left')
 
+    locs, labels = plt.xticks()
+
+    newlabels = ['10$^{{ {:2.0f} }}$'.format(val) for val in locs]
+    plt.xticks(locs[1:],newlabels[1:])
+
+    
     if figname:
         plt.savefig(figname)
