@@ -10,6 +10,11 @@ import math
 from astropy.table import Table, QTable, join
 import ipdb
 
+mycolors = {'blc': 'darkslateblue',
+            'early': 'darkorange',
+            'later_2x': 'seagreen',
+            'later_4x':'firebrick' }
+
 
 ## imsize vs. nchan overview plots
 ## ------------------------------
@@ -1291,13 +1296,13 @@ def plot_soc_result_hist(mydb,
 
     # select color
     if data_val == 'blc_sysperf_typical':
-        mycolor = '#1f77b4'
+        mycolor = mycolors['blc']
     elif data_val == 'wsu_sysperf_early_stepped2_typical':
-        mycolor = '#ff7f0e'
+        mycolor = mycolors['early']
     elif data_val == 'wsu_sysperf_later_2x_stepped2_typical':
-        mycolor = '#2ca02c'
+        mycolor = mycolors['later_2x']
     elif data_val == 'wsu_sysperf_later_4x_stepped2_typical':
-        mycolor = '#d62728'
+        mycolor = mycolors['later_4x']
     else:
         print("Data value not found. Using default color.")
         mycolor = 'black'
@@ -1334,7 +1339,7 @@ def plot_soc_result_cumulative(mydb,
                                plot_title="System Performance",
                                add_wavg=False,
                                add_band2_specscan = None,
-                               figname=None):
+                               pltname=None):
 
     '''
     Purpose: create cumulative histograms showing size of compute
@@ -1358,13 +1363,13 @@ def plot_soc_result_cumulative(mydb,
              bins=mybins,
              log=True,
              density=True,
-             color='#1f77b4',
+             color=mycolors['blc'],
              linewidth=2,
              label='BLC (unmitigated)')
 
     if add_wavg:
         wavg = np.average(mydb['blc_sysperf_typical'],weights=mydb['weights_all'])
-        plt.axvline(np.log10(wavg), color='#1f77b4', linestyle=':')
+        plt.axvline(np.log10(wavg), color=mycolors['blc'], linestyle=':')
         #plt.text(np.log10(wavg)+0.05,0.012,'{:5.2e} \nPFLOP/s'.format(wavg),
         #         color='#1f77b4')
 
@@ -1374,7 +1379,7 @@ def plot_soc_result_cumulative(mydb,
              bins=mybins,
              log=True,
              density=True,
-             color='#ff7f0e',
+             color=mycolors['early'],
              linestyle=':',linewidth=2,
              label='early WSU \n(<500 MB/s)',)
      
@@ -1383,13 +1388,13 @@ def plot_soc_result_cumulative(mydb,
              bins=mybins,
              log=True,
              density=True,
-             color='#ff7f0e',
+             color=mycolors['early'],
              linewidth=2,
              label='early WSU')
 
     if add_wavg:
         wavg = np.average(mydb['wsu_sysperf_early_stepped2_typical'],weights=mydb['weights_all'])
-        plt.axvline(np.log10(wavg), color='#ff7f0e', linestyle=':')
+        plt.axvline(np.log10(wavg), color=mycolors['early'], linestyle=':')
         #plt.text(np.log10(wavg)+0.05,0.0055,'{:5.2e} \nPFLOP/s'.format(wavg),
         #         color='#ff7f0e')
 
@@ -1398,14 +1403,14 @@ def plot_soc_result_cumulative(mydb,
              bins=mybins,
              log=True,
              density=True,
-             color='#2ca02c',
+             color=mycolors['later_2x'],
              linewidth=2,
              label='later WSU (2x)')
 
     
     if add_wavg:
         wavg = np.average(mydb['wsu_sysperf_later_2x_stepped2_typical'],weights=mydb['weights_all'])
-        plt.axvline(np.log10(wavg), color='#2ac02c', linestyle=':')
+        plt.axvline(np.log10(wavg), color=mycolors['later_2x'], linestyle=':')
         #plt.text(np.log10(wavg)+0.05,0.0026,'{:5.2e} \nPFLOP/s'.format(wavg),
         #         color='#2ca02c')
                 
@@ -1414,14 +1419,14 @@ def plot_soc_result_cumulative(mydb,
              bins=mybins,
              log=True,
              density=True,
-             color = '#d62728',
+             color = mycolors['later_4x'],
              linewidth=2,
              label='later WSU (4x)')
     
     
     if add_wavg:
         wavg = np.average(mydb['wsu_sysperf_later_4x_stepped2_typical'],weights=mydb['weights_all'])
-        plt.axvline(np.log10(wavg), color='#d62728', linestyle=':')
+        plt.axvline(np.log10(wavg), color=mycolors['later_4x'], linestyle=':')
         #plt.text(np.log10(wavg)+0.05,0.0013,'{:5.2e} \nPFLOP/s'.format(wavg),
         #         color='#d62728')
 
@@ -1477,5 +1482,5 @@ def plot_soc_result_cumulative(mydb,
     plt.xticks(locs[1:],newlabels[1:])
 
     
-    if figname:
-        plt.savefig(figname)
+    if pltname:
+        plt.savefig(pltname)
