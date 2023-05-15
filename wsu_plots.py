@@ -955,6 +955,7 @@ def plot_casa_tool_time(mytab, plot_title='Cycle 7'):
 
 def plot_cubesize_comparison(mydb,
                              plot_title='Cube Size',
+                             mitigated_wsu=False,
                              figname=None):
     '''
     Purpose: compare the cubesize distribution
@@ -970,57 +971,69 @@ def plot_cubesize_comparison(mydb,
     
     mybins = 500
 
-    plt.hist(np.log10(mydb['mitigatedcubesize']),cumulative=-1,histtype='step',
+    plt.hist(np.log10(mydb['mitigatedcubesize'].value.filled(np.nan)),cumulative=-1,histtype='step',
              bins=mybins,
              log=True,
              density=True,
-             color='#1f77b4',
-             linestyle='-',
+             color=mycolors['blc'],
+             linestyle=':',
+             linewidth=2,
              label="BLC (mitigated)")
 
-    plt.hist(np.log10(mydb['predcubesize']), cumulative=-1, histtype='step',
+    plt.hist(np.log10(mydb['predcubesize'].value.filled(np.nan)), cumulative=-1, histtype='step',
              bins=mybins,
              log=True,
              density=True,
-             color='#1f77b4',
-             linestyle=':',
+             color=mycolors['blc'],
+             linestyle='-',
+             linewidth=2,
              label="BLC (unmitigated)")
 
+    if mitigated_wsu:
 
-    plt.hist(np.log10(mydb['wsu_cubesize_stepped2_mit']), cumulative=-1, histtype='step',
+        plt.hist(np.log10(mydb['wsu_cubesize_stepped2_mit'].value), cumulative=-1, histtype='step',
+                 bins=mybins,
+                 log=True,
+                 density=True,
+                 color=mycolors['early'],
+                 linestyle=':',
+                 linewidth=2,
+                 label="WSU (mitigated)")
+
+
+    plt.hist(np.log10(mydb['wsu_cubesize_stepped2'].value), cumulative=-1, histtype='step',
              bins=mybins,
              log=True,
              density=True,
-             color='#ff7f0e',
-             label="WSU (mitigated)")
-
-
-    plt.hist(np.log10(mydb['wsu_cubesize_stepped2']), cumulative=-1, histtype='step',
-             bins=mybins,
-             log=True,
-             density=True,
-             color='#ff7f0e',
-             linestyle=':',
+             color=mycolors['early'],
+             linestyle='-',
+             linewidth=2,
              label="WSU (unmitigated)")
 
-    plt.axvline(np.log10(maxcubesize), color='black', linestyle=':')
-    plt.axvline(np.log10(cubesizelimit), color='black', linestyle='-')
+    plt.axvline(np.log10(maxcubesize), color='black', linestyle=':', linewidth=2)
+    plt.axvline(np.log10(cubesizelimit), color='black', linestyle='-', linewidth=2)
     
     plt.text(np.log10(maxcubesize)-0.1,0.5,'40GB',horizontalalignment='right')
     plt.text(np.log10(cubesizelimit)+0.1,0.5,'60GB',horizontalalignment='left')
 
-    plt.axhline(0.1,color='gray',linestyle=':')
+    plt.axhline(0.1,color='gray',linestyle=':', linewidth=2)
     plt.text(0,0.1,'90% smaller')
 
-    plt.axhline(0.05,color='gray',linestyle=':')
+    plt.axhline(0.05,color='gray',linestyle=':', linewidth=2)
     plt.text(0,0.05,'95% smaller')
 
-    plt.axhline(0.01,color='gray',linestyle=':')
+    plt.axhline(0.01,color='gray',linestyle=':', linewidth=2)
     plt.text(0,0.01,'99% smaller')
 
     plt.grid(which='both',axis='both',linestyle=':')
-    
-    plt.xlabel('Log10(Cubesize in GB)')
+
+    locs, labels = plt.xticks()
+
+    newlabels = ['10$^{{ {:2.0f} }}$'.format(val) for val in locs]
+    plt.xticks(locs[1:],newlabels[1:])
+
+    #plt.xlabel('Log10(Cubesize in GB)')
+    plt.xlabel('Cubesize in GB')
     plt.ylabel('Fraction of Larger Cubes')
 
     plt.title(plot_title)
@@ -1028,9 +1041,100 @@ def plot_cubesize_comparison(mydb,
 
     if figname:
         plt.savefig(figname)
+
+
+def plot_productsize_result_hist(mydb,
+                                 bin_min=-1,
+                                 bin_max=-1,
+                                 nbin=10,
+                                 data_val='initialprodsize',
+                                 title='',
+                                 add_wavg=False,
+                                 pltname=None):
+    '''
+    Purpose: create plot showing histogram of product sizes
+
+    Inputs: mydb with weights and productsizes
+
+    Output:
+        if pltname:
+                plot showing fraction of each data volume
+
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    5/15/2023   A.A. Kepley     Description of Changes
+    '''
+
+    import re
+    
+    if data_val not in mydb.columns:
+        print("Column not found in database: "+data_val)
+        return
+
+    if bin_min < 0:
+        bin_min = np.min(mydb[data_val]).value
+
+    if bin_max < 0:
+        bin_max = np.max(mydb[data_val]).value
+    
+    # nbin+1 not nbin to take care of fence post 
+    mybins = np.linspace(bin_min,bin_max,nbin+1)
+
+    # select color
+    if data_val == 'mitigatedprodsize':
+        mycolor = mycolors['blc']
+    elif data_val == 'wsu_productsize_early_stepped2':
+        mycolor = mycolors['early']
+    elif data_val == 'wsu_productsize_later_2x_stepped2':
+        mycolor = mycolors['later_2x']
+    elif data_val == 'wsu_productsize_later_4x_stepped2':
+        mycolor = mycolors['later_4x']
+    else:
+        print("Data value not found. Using default color.")
+        mycolor = 'black'
+
+    fig, ax1 = plt.subplots()
+    
+    myhist = ax1.hist(mydb[data_val].to('TB').value,bins=mybins,
+                      log=True,
+                      color=mycolor,
+                      weights=mydb['weights_all'])
+
+    if data_val == 'mitigatedprodsize':
+        myhist = ax1.hist(mydb['initialprodsize'].to('TB').value,bins=mybins,
+                          log=True,
+                          color=mycolor,
+                          histtype='step',
+                          linestyle=':',
+                          weights=mydb['weights_all'],
+                          label='unmitigated')
+        plt.legend()
+        
+    ax1.set_ylim((0,1))
+
+    if add_wavg:
+
+        if data_val == 'mitigatedprodsize':
+            wavg = np.average(mydb[data_val].to('TB').value.filled(np.nan),weights=mydb['weights_all'])
+        else:
+            wavg = np.average(mydb[data_val].to('TB').value, weights=mydb['weights_all'])
+            
+        ax1.axvline(wavg, color='black',linestyle=':',
+                    label='Weighted Average')
+        ax1.text(wavg+wavg*0.1,0.65, '{:5.2e} TB'.format(wavg),
+                 horizontalalignment='left',size=12)
+
+    ax1.set_xlabel('Product Size (TB)')
+    ax1.set_ylabel('Fraction of time')
+
+    ax1.set_title(title)
+    
+    if pltname:
+        plt.savefig(pltname)
     
 def plot_productsize_comparison(mydb,
                                 plot_title='Product Size',
+                                mitigated_wsu=False,
                                 figname=None):
     '''
     Purpose: compare the productsize distribution
@@ -1042,74 +1146,93 @@ def plot_productsize_comparison(mydb,
 
     '''
 
-    maxproductsize = 500 #GB
+    #maxproductsize = 500 #GB
+    maxproductsize = 0.500 #TB
     mybins = 500
 
-    plt.hist(np.log10(mydb['mitigatedprodsize']),cumulative=-1,histtype='step',
+    plt.hist(np.log10(mydb['mitigatedprodsize'].to('TB').value.filled(np.nan)),cumulative=-1,histtype='step',
              bins=mybins,
              log=True,
              density=True,
-             color='#1f77b4',
-             linestyle='-',
+             weights=mydb['weights_all'],
+             color=mycolors['blc'],
+             linestyle=':',
+             linewidth=2,
              label="BLC (mitigated)")
 
-    plt.hist(np.log10(mydb['initialprodsize']), cumulative=-1, histtype='step',
+    plt.hist(np.log10(mydb['initialprodsize'].to('TB').value.filled(np.nan)), cumulative=-1, histtype='step',
              bins=mybins,
              log=True,
              density=True,
-             color='#1f77b4',
-             linestyle=':',
+             weights=mydb['weights_all'],
+             color=mycolors['blc'],
+             linestyle='-',
+             linewidth=2,
              label="BLC (unmitigated)")
 
+    if mitigated_wsu:
+        plt.hist(np.log10(mydb['wsu_productsize_early_stepped2_mit'].to('TB').value), cumulative=-1, histtype='step',
+                 bins=mybins,
+                 log=True,
+                 density=True,
+                 weights=mydb['weights_all'],
+                 color=mycolors['early'],
+                 linewidth=2,
+                 linestyle=':',
+                 label="Early WSU (mitigated)")
 
-    plt.hist(np.log10(mydb['wsu_productsize_early_stepped2_mit']), cumulative=-1, histtype='step',
+    plt.hist(np.log10(mydb['wsu_productsize_early_stepped2'].to('TB').value), cumulative=-1, histtype='step',
              bins=mybins,
              log=True,
              density=True,
-             color='#ff7f0e',
-             label="Early WSU (mitigated)")
-
-    plt.hist(np.log10(mydb['wsu_productsize_early_stepped2']), cumulative=-1, histtype='step',
-             bins=mybins,
-             log=True,
-             density=True,
-             color='#ff7f0e',
-             linestyle=':',
+             weights=mydb['weights_all'],
+             color=mycolors['early'],
+             linestyle='-',
+             linewidth=2,
              label="Early WSU")
 
-    plt.hist(np.log10(mydb['wsu_productsize_later_2x_stepped2']), cumulative=-1, histtype='step',
+    plt.hist(np.log10(mydb['wsu_productsize_later_2x_stepped2'].to('TB').value), cumulative=-1, histtype='step',
              bins=mybins,
              log=True,
              density=True,
-             color='#2ca02c',
+             weights=mydb['weights_all'],
+             color=mycolors['later_2x'],
+             linewidth=2,
              label="Later WSU (2x)")
 
-    plt.hist(np.log10(mydb['wsu_productsize_later_4x_stepped2']), cumulative=-1, histtype='step',
+    plt.hist(np.log10(mydb['wsu_productsize_later_4x_stepped2'].to('TB').value), cumulative=-1, histtype='step',
              bins=mybins,
              log=True,
              density=True,
-             color='#d62728',
+             weights=mydb['weights_all'],
+             color=mycolors['later_4x'],
+             linewidth=2,
              label="Later WSU (4x)")
 
     plt.axvline(np.log10(maxproductsize), color='black', linestyle=':')
-
-    
-    plt.text(np.log10(maxproductsize)-0.1,0.5,'500GB',horizontalalignment='right')
+    plt.text(np.log10(maxproductsize)+0.1,0.65,'Current productsize limit\n(500GB)',horizontalalignment='left')
 
     plt.axhline(0.1,color='gray',linestyle=':')
-    plt.text(0,0.1,'90% smaller')
+    plt.text(-3.5,0.1,'90% smaller')
 
     plt.axhline(0.05,color='gray',linestyle=':')
-    plt.text(0,0.05,'95% smaller')
+    plt.text(-3.5,0.05,'95% smaller')
 
     plt.axhline(0.01,color='gray',linestyle=':')
-    plt.text(0,0.01,'99% smaller')
+    plt.text(-3.5,0.01,'99% smaller')
 
     plt.grid(which='both',axis='both',linestyle=':')
     
-    plt.xlabel('Log10(Product size in GB)')
+    #plt.xlabel('Log10(Product size in TB)')
+    plt.xlabel('Product size in TB')
     plt.ylabel('Fraction of Larger Products')
 
+    locs, labels = plt.xticks()
+
+    newlabels = ['10$^{{ {:2.0f} }}$'.format(val) for val in locs]
+    plt.xticks(locs[1:],newlabels[1:])
+
+    
     plt.title(plot_title)
     plt.legend(loc='lower left')
 
@@ -1131,49 +1254,216 @@ def plot_datavol_comparison(mydb,
 
     mybins = 500
 
-    plt.hist(np.log10(mydb['blc_datavol_typical_total']),cumulative=-1,histtype='step',
+    plt.hist(np.log10(mydb['blc_datavol_typical_total'].to('TB').value),cumulative=-1,histtype='step',
              bins=mybins,
              log=True,
              density=True,
-             color='#1f77b4',             
+             color=mycolors['blc'],
+             linewidth=2,
              label="BLC")
     
-    plt.hist(np.log10(mydb['wsu_datavol_early_stepped2_typical_total']), cumulative=-1,histtype='step',
+    plt.hist(np.log10(mydb['wsu_datavol_early_stepped2_typical_total'].to('TB').value), cumulative=-1,histtype='step',
              bins=mybins,
              log=True,
              density=True,
-             color='#ff7f0e',
+             color=mycolors['early'],
+             linewidth=2,
              label="early WSU")
 
-    plt.hist(np.log10(mydb['wsu_datavol_later_2x_stepped2_typical_total']), cumulative=-1,histtype='step',
+    plt.hist(np.log10(mydb['wsu_datavol_later_2x_stepped2_typical_total'].to('TB').value), cumulative=-1,histtype='step',
              bins=mybins,
              log=True,
              density=True,
-             color='#2ca02c',
+             color=mycolors['later_2x'],
+             linewidth=2,
              label="later WSU (2x)")
 
-    plt.hist(np.log10(mydb['wsu_datavol_later_4x_stepped2_typical_total']), cumulative=-1,histtype='step',
+    plt.hist(np.log10(mydb['wsu_datavol_later_4x_stepped2_typical_total'].to('TB').value), cumulative=-1,histtype='step',
              bins=mybins,
              log=True,
              density=True,
-             color='#d62728',
+             color=mycolors['later_4x'],
+             linewidth=2,
              label="later WSU (4x)")
         
 
     plt.axhline(0.1,color='gray',linestyle=':')
-    plt.text(0,0.1,'90% smaller')
+    plt.text(-3,0.1,'90% smaller')
 
     plt.axhline(0.05,color='gray',linestyle=':')
-    plt.text(0,0.05,'95% smaller')
+    plt.text(-3,0.05,'95% smaller')
 
     plt.axhline(0.01,color='gray',linestyle=':')
-    plt.text(0,0.01,'99% smaller')
+    plt.text(-3,0.01,'99% smaller')
 
     plt.grid(which='both',axis='both',linestyle=':')
     
-    plt.xlabel('Log10(Visibility Data Volume (GB))')
+    #plt.xlabel('log(Visibility Data Volume (TB))')
+    plt.xlabel('Visibility Data Volume (TB)')
     plt.ylabel('Fraction of Larger Data')
 
+    locs, labels = plt.xticks()
+
+    newlabels = ['10$^{{ {:2.0f} }}$'.format(val) for val in locs]
+    plt.xticks(locs[1:],newlabels[1:])
+
+    
+    plt.title(plot_title)
+    plt.legend(loc='lower left')
+
+    if figname:
+        plt.savefig(figname)
+
+def plot_datavol_result_hist(mydb,
+                             bin_min=-1,
+                             bin_max=-1,
+                             nbin=10,
+                             data_val = 'blc_datavol_typical_total',
+                             title='',
+                             add_wavg=False,
+                             pltname=None):
+
+    '''
+    Purpose: create plot showing distribution of data volumes
+
+    Inputs: mydb with weights and data volumes
+
+    Output:
+        if pltname:
+                plot showing fraction of each data volume
+
+    Date        Programmer      Description of Changes
+    -----------------------------------------------------------
+    5/15/2023   A.A. Kepley     Original Code
+
+    '''
+
+    import re
+    
+    if data_val not in mydb.columns:
+        print("Column not found in database: "+data_val)
+        return
+
+    if bin_min < 0:
+        bin_min = np.min(mydb[data_val]).value
+
+    if bin_max < 0:
+        bin_max = np.max(mydb[data_val]).value
+    
+    # nbin+1 not nbin to take care of fence post 
+    mybins = np.linspace(bin_min,bin_max,nbin+1)
+
+    # select color
+    if data_val == 'blc_datavol_typical_total':
+        mycolor = mycolors['blc']
+    elif data_val == 'wsu_datavol_early_stepped2_typical_total':
+        mycolor = mycolors['early']
+    elif data_val == 'wsu_datavol_later_2x_stepped2_typical_total':
+        mycolor = mycolors['later_2x']
+    elif data_val == 'wsu_datavol_later_4x_stepped2_typical_total':
+        mycolor = mycolors['later_4x']
+    else:
+        print("Data value not found. Using default color.")
+        mycolor = 'black'
+
+    
+    fig, ax1 = plt.subplots()
+    
+    myhist = ax1.hist(mydb[data_val].to('TB').value,bins=mybins,
+                      log=True,
+                      color=mycolor,
+                      weights=mydb['weights_all'])
+
+    ax1.set_ylim((0,1))
+
+    if add_wavg:
+
+        wavg = np.average(mydb[data_val].to('TB').value,weights=mydb['weights_all'])
+        ax1.axvline(wavg, color='black',linestyle=':',
+                 label='Weighted Average')
+        ax1.text(wavg+wavg*0.1,0.7, '{:5.2e} TB'.format(wavg),
+                 horizontalalignment='left',size=12)
+
+    ax1.set_xlabel('Visibility Data Volume (TB)')
+    ax1.set_ylabel('Fraction of time')
+
+    ax1.set_title(title)
+    
+    if pltname:
+        plt.savefig(pltname)
+
+def plot_datarate_comparison(mydb,
+                             plot_title="Data Rate",
+                             figname=None):
+    '''
+    Purpose: compare the data rate distribution between WSU and BLC.
+
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    5/15/2023   A.A. Kepley     Original Code
+    '''
+
+    mybins = 500
+
+    plt.hist(np.log10(mydb['blc_datarate_typical'].value),cumulative=-1,histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             color=mycolors['blc'],
+             weights=mydb['weights_all'],
+             linewidth=2,
+             label="BLC")
+    
+    plt.hist(np.log10(mydb['wsu_datarate_early_stepped2_typical'].value), cumulative=-1,histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             color=mycolors['early'],
+             weights=mydb['weights_all'],
+             linewidth=2,
+             label="early WSU")
+
+    plt.hist(np.log10(mydb['wsu_datarate_later_2x_stepped2_typical'].value), cumulative=-1,histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             color=mycolors['later_2x'],
+             weights=mydb['weights_all'],
+             linewidth=2,
+             label="later WSU (2x)")
+
+    plt.hist(np.log10(mydb['wsu_datarate_later_4x_stepped2_typical'].value), cumulative=-1,histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             color=mycolors['later_4x'],
+             weights=mydb['weights_all'],
+             linewidth=2,
+             label="later WSU (4x)")
+
+    plt.axhline(0.1,color='gray',linestyle=':')
+    plt.text(-3.5,0.1,'90% smaller')
+    
+    plt.axhline(0.05,color='gray',linestyle=':')
+    plt.text(-3.5,0.05,'95% smaller')
+
+    plt.axhline(0.01,color='gray',linestyle=':')
+    plt.text(-3.5,0.01,'99% smaller')
+
+    plt.axvline(np.log10(0.5),color='black',linestyle=':', linewidth=2)
+    plt.text(np.log10(0.5)+0.1, 0.9, '500 MB/s limit')
+
+    plt.grid(which='both',axis='both',linestyle=':')
+    
+    plt.xlabel('Data rate (GB/s)')
+    plt.ylabel('Fraction of Larger Data')
+    
+    locs, labels = plt.xticks()
+
+    newlabels = ['10$^{{ {:2.0f} }}$'.format(val) for val in locs]
+    plt.xticks(locs[1:],newlabels[1:])
+
+    
     plt.title(plot_title)
     plt.legend(loc='lower left')
 
@@ -1181,13 +1471,14 @@ def plot_datavol_comparison(mydb,
         plt.savefig(figname)
 
     
-        
+         
 def plot_datarate_result_hist(mydb,
                               bin_min=-1,
                               bin_max=-1,   
                               nbin=10,
                               data_val = 'blc_datarate_typical', 
                               title='',
+                              add_wavg=False,
                               pltname=None):
     '''
     Purpose: create plots and calculate result table 
@@ -1204,7 +1495,7 @@ def plot_datarate_result_hist(mydb,
     Date        Programmer      Description of Changes
     ------------------------------------------------------------------------
     2/27/2023   A.A. Kepley     Original Code
-
+    5/15/2023   A.A. Kepley     prettified the plot
     
     '''
     import re
@@ -1224,13 +1515,13 @@ def plot_datarate_result_hist(mydb,
 
     # select color
     if data_val == 'blc_datarate_typical':
-        mycolor = '#1f77b4'
+        mycolor = mycolors['blc']
     elif data_val == 'wsu_datarate_early_stepped2_typical':
-        mycolor = '#ff7f0e'
+        mycolor = mycolors['early']
     elif data_val == 'wsu_datarate_later_2x_stepped2_typical':
-        mycolor = '#2ca02c'
+        mycolor = mycolors['later_2x']
     elif data_val == 'wsu_datarate_later_4x_stepped2_typical':
-        mycolor = '#d62728'
+        mycolor = mycolors['later_4x']
     else:
         print("Data value not found. Using default color.")
         mycolor = 'black'
@@ -1242,8 +1533,18 @@ def plot_datarate_result_hist(mydb,
                       color=mycolor,
                       weights=mydb['weights_all'])
 
-    ax1.set_xlabel('Data Rate (GB/s)')
-    ax1.set_ylabel('log(Fraction of time)')
+    ax1.set_ylim((0,1))
+
+    if add_wavg:
+
+        wavg = np.average(mydb[data_val].value,weights=mydb['weights_all'])
+        ax1.axvline(wavg, color='black',linestyle=':',
+                 label='Weighted Average')
+        ax1.text(wavg+wavg*0.1,0.7, '{:5.2e} GB/s'.format(wavg),
+                 horizontalalignment='left',size=12)
+
+        ax1.set_xlabel('Data Rate (GB/s)')
+    ax1.set_ylabel('Fraction of time')
 
     ax1.set_title(title)
     
@@ -1273,6 +1574,7 @@ def plot_soc_result_hist(mydb,
                 csv file giving fraction, data rate in each bin
 
     TODO: ADD WEIGHTED AVERAGE TO PLOTS TO SHOW???
+
 
     Date        Programmer      Description of Changes
     ------------------------------------------------------------------------
