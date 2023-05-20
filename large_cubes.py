@@ -707,6 +707,20 @@ def calc_nchan_max(imsize, cube_limit, chan_limit=80*14880):
     return nchan_max
 
 
+def calc_imsize(nchan, cube_limit):
+    '''
+    calculate image size for given nchan and cube_limit in pixels
+
+    imsize: pixels
+    limit: in GB
+    nchan: number of channels
+    
+    '''
+
+    imsize = np.sqrt(cube_limit * 1e9 / (4 * nchan))
+
+    return imsize
+
 def calc_cube_size(imsize, nchan):
 
     cube_size = 4.0 * imsize**2 * nchan /1.0e9 * u.GB

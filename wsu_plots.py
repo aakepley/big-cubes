@@ -10,11 +10,36 @@ import math
 from astropy.table import Table, QTable, join
 import ipdb
 
+# setup generic colors 
 mycolors = {'blc': 'darkslateblue',
             'early': 'darkorange',
             'later_2x': 'seagreen',
             'later_4x':'firebrick' }
 
+### NOT SURE THIS IS HELPFUL INFORMATION ANY MORE
+# things needed by all functions
+band2specscan = {'nchan':595200.0,
+                 'imsize':10670.0,
+                 'vis_rate_typical': 3063.86,
+                 'vis_rate_array':4055.86,
+                 'vis_rate_all':6079.54,
+                 'freq':75.0,
+                 'bandwidth':16.0}
+
+band2specscan_500MBs = {'nchan':148800.0,
+                        'imsize':10670.0,
+                        'vis_rate_typical': 765.97,
+                        'freq':75.0,
+                        'bandwidth':16.0}
+
+band2specscan_160MBs = {'nchan': 49600.0,
+                        'imsize':10670.0,
+                        'vis_rate_typical': 255.32,
+                        'freq':75.0,
+                        'bandwidth':16.0}
+
+
+band2specscan['frac_bw'] = band2specscan['bandwidth']/band2specscan['freq']
 
 ## imsize vs. nchan overview plots
 ## ------------------------------
@@ -234,7 +259,7 @@ def make_imsize_vs_nchan(result,
         plt.title(title,size=16)
     plt.grid(which='both')
     plt.legend(loc='upper right',bbox_to_anchor=(1.5,1.0),borderpad=1.2)
-
+    
     if pltname:
         plt.savefig(pltname)
 
@@ -249,12 +274,20 @@ def make_imsize_vs_nchan_hist2d(result, chan_type = 'wsu_nchan_final_stepped',
                                 mit_limits=True,
                                 pltname=None,
                                 nspw=10,
+                                myweights=None,
                                 **kwargs):
     '''
+    Purpose: make 2d distribution of imsize vs. nchn
 
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    ~9/2022   A.A. Kepley       Original Code
 
     '''
 
+    from large_cubes import calc_nchan_max, calc_imsize
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    
     # current limits
     cubelimit = 40 #GB
     maxcube = 60 # GB
@@ -270,7 +303,7 @@ def make_imsize_vs_nchan_hist2d(result, chan_type = 'wsu_nchan_final_stepped',
     mit_limit_500x = calc_nchan_max(mit_imsize, maxcube*500.0)
     
     # make figure
-    plt.figure(figsize=(10,8),edgecolor='white',facecolor='white')
+    plt.figure(figsize=(8,9),edgecolor='white',facecolor='white')
     ax = plt.subplot(111,position=[0.1,0.1,0.6,0.8])
     
     # create bins -- add extra end point
@@ -278,11 +311,18 @@ def make_imsize_vs_nchan_hist2d(result, chan_type = 'wsu_nchan_final_stepped',
     log_nchan_bins = np.arange(log_nchan_range[0], log_nchan_range[1] + log_nchan_step, log_nchan_step)
     
     # plot histogram
-    h, xedges, yedges,image = ax.hist2d(np.log10(result['imsize']),
-                                        np.log10(result[chan_type]),
-                                        bins=[log_imsize_bins,log_nchan_bins],cmap=cmap,cmin=0.5,**kwargs)
-
-
+    if myweights is not None:
+        h, xedges, yedges,image = ax.hist2d(np.log10(result['imsize']),
+                                            np.log10(result[chan_type]),
+                                            bins=[log_imsize_bins,log_nchan_bins],cmap=cmap,cmin=0.5,
+                                            weights=myweights,**kwargs)
+        
+    else:
+        h, xedges, yedges,image = ax.hist2d(np.log10(result['imsize']),
+                                            np.log10(result[chan_type]),
+                                            bins=[log_imsize_bins,log_nchan_bins],cmap=cmap,cmin=0.5,
+                                            **kwargs)
+        
     if band2_specscan:
 
         color_specscan='black'
@@ -290,39 +330,63 @@ def make_imsize_vs_nchan_hist2d(result, chan_type = 'wsu_nchan_final_stepped',
         #                    color=color_specscan, linewidth=4, linestyle='-')        
         ax.axhline(np.log10(band2specscan_500MBs['nchan']/nspw),label="Data rate = \n 500 MB/s",
                             color=color_specscan, linewidth=4, linestyle='-')
+        ax.text(1.7,np.log10(band2specscan_500MBs['nchan']/nspw)+0.05, "Data rate = 500 MB/s",
+                size=16)
+
         ax.axhline(np.log10(band2specscan['nchan']/nspw),label="Data rate = \n 1800 MB/s",
                    color=color_specscan, linewidth=4, linestyle='--')
-
+        ax.text(1.7,np.log10(band2specscan['nchan']/nspw)+0.05, "Data rate = 1800 MB/s",
+                size=16)
+        
         ax.axhline(np.log10(80*14880/nspw), label="Max data rate = \n 3600 MB/s",
                    linewidth=4,linestyle=':',color=color_specscan)
+        ax.text(1.7,np.log10(80*14880/nspw)+0.05, "Max data rate = 3600 MB/s",
+                size=16)
 
     if mit_limits:
         linewidth=4
+        text_nchan = 5.7
         #ax.plot(np.log10(mit_imsize),np.log10(mit_threshold),color='magenta',linewidth=linewidth,
         #        linestyle='-',
         #        label='current mitigation \n threshold')
         ax.plot(np.log10(mit_imsize),np.log10(mit_limit),color='darkorange',linewidth=linewidth,
                 linestyle='-',
                 label='current mitigation \n limit')
+        ax.text(np.log10(calc_imsize(10**text_nchan,maxcube))+0.03, text_nchan,'60GB',
+                color='darkorange',size=14)
         #ax.plot(np.log10(mit_imsize),np.log10(mit_limit_2x),color='gray',linewidth=3,
         #         linestyle="-",
         #         label='2x mitigation \n limit')
         ax.plot(np.log10(mit_imsize),np.log10(mit_limit_10x),color='darkorange',linewidth=linewidth,
                 linestyle='--',
                 label='10x mitigation \n limit')
+        ax.text(np.log10(calc_imsize(10**text_nchan,maxcube*10))+0.03, text_nchan,'600GB',
+                color='darkorange',size=14)
+
         ax.plot(np.log10(mit_imsize),np.log10(mit_limit_100x),color='darkorange',linewidth=linewidth,
                 linestyle="-.",
                 label='100x mitigation \n limit')
+        ax.text(np.log10(calc_imsize(10**text_nchan,maxcube*100))+0.03, text_nchan,'6TB',
+                color='darkorange',size=14)
+        
         ax.plot(np.log10(mit_imsize),np.log10(mit_limit_500x),color='darkorange',linewidth=linewidth,
                 linestyle=":",
                 label='500x mitigation \n limit')
+        ax.text(np.log10(calc_imsize(10**text_nchan,maxcube*500))+0.03, text_nchan,'30TB',
+                color='darkorange',size=14)
+        
         
     ax.set_xlabel('log imsize',size=14)
     ax.set_ylabel('log nchan',size=14)
     ax.set_title(title)
+    
+    #ax.legend(loc='upper right',bbox_to_anchor=(1.5,1.0),borderpad=1.2,handlelength=6)
 
-    ax.legend(loc='upper right',bbox_to_anchor=(1.5,1.0),borderpad=1.2,handlelength=6)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes('bottom',size='5%',pad=0.7)
 
+    plt.colorbar(image,cax=cax, orientation = 'horizontal',label='Number of spws')
+    
     if pltname:
         plt.savefig(pltname)
     
@@ -953,6 +1017,89 @@ def plot_casa_tool_time(mytab, plot_title='Cycle 7'):
 ## WSU Data property breakdown
 ## -------------------------
 
+def plot_cubesize_result_hist(mydb,
+                              bin_min=-1,
+                              bin_max=-1,
+                              nbin=10,
+                              data_val='mitigatedcubesize',
+                              title='',
+                              add_wavg=False,
+                              pltname=None):
+
+    '''
+    Purpose: create histogram showing cube sizes.
+    
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    5/16/2023   A.A. Kepley     Original Code
+    '''
+
+    import re
+    
+
+    if data_val not in mydb.columns:
+        print("Column not found in database: "+data_val)
+        return
+
+    if bin_min < 0:
+        bin_min = np.min(mydb[data_val]).value
+        
+    if bin_max < 0:
+        bin_max = np.max(mydb[data_val]).value
+    
+    # nbin+1 not nbin to take care of fence post 
+    mybins = np.linspace(bin_min,bin_max,nbin+1)
+
+    # select color
+    if data_val == 'mitigatedcubesize':
+        mycolor = mycolors['blc']
+    elif data_val == 'wsu_cubesize_stepped2':
+        mycolor = mycolors['early']
+    else:
+        print("Data value not found. Using default color.")
+        mycolor = 'black'
+
+    fig, ax1 = plt.subplots()
+
+    myhist = ax1.hist(mydb[data_val].to('TB').value,bins=mybins,
+                      log=True,
+                      color=mycolor,
+                      weights=mydb['weights_all'])
+
+    if data_val == 'mitigatedcubesize':
+        myhist = ax1.hist(mydb['predcubesize'].to('TB').value,bins=mybins,
+                          log=True,
+                          color=mycolor,
+                          histtype='step',
+                          linestyle=':',
+                          weights=mydb['weights_all'],
+                          label='unmitigated')
+        plt.legend()
+        
+    ax1.set_ylim((0,1))
+
+    if add_wavg:
+
+        if data_val == 'mitigatedcubesize':
+            wavg = np.ma.average(mydb[data_val].to('TB').value,weights=mydb['weights_all'])
+            #ipdb.set_trace()
+        else:
+            wavg = np.average(mydb[data_val].to('TB').value, weights=mydb['weights_all'])
+
+        ax1.axvline(wavg, color='black',linestyle=':',
+                    label='Weighted Average')
+        ax1.text(wavg+wavg*0.2,0.65, '{:5.2e} TB'.format(wavg),
+                 horizontalalignment='left',size=12)
+
+    ax1.set_xlabel('Cube Size (TB)')
+    ax1.set_ylabel('Fraction of time')
+
+    ax1.set_title(title)
+    
+    if pltname:
+        plt.savefig(pltname)
+
+
 def plot_cubesize_comparison(mydb,
                              plot_title='Cube Size',
                              mitigated_wsu=False,
@@ -1033,7 +1180,7 @@ def plot_cubesize_comparison(mydb,
     plt.xticks(locs[1:],newlabels[1:])
 
     #plt.xlabel('Log10(Cubesize in GB)')
-    plt.xlabel('Cubesize in GB')
+    plt.xlabel('Cube size (GB)')
     plt.ylabel('Fraction of Larger Cubes')
 
     plt.title(plot_title)
@@ -1131,6 +1278,70 @@ def plot_productsize_result_hist(mydb,
     
     if pltname:
         plt.savefig(pltname)
+
+
+def plot_spw_hist(mydb,
+                  bin_min=-1,
+                  bin_max=-1,
+                  nbin=10,
+                  title='',
+                  data_val='blc_nspw',
+                  pltname=None):
+
+    '''
+    Purpose: plot the distribution of number of spectral windows
+
+    Date        Programmer      Description of Changes
+    -------------------------------------------------------
+    5/16/2023   A.A. Kepley     Original Code
+    '''
+    
+
+    if bin_min < 0:
+        bin_min = np.min(mydb[data_val]).value
+
+    if bin_max < 0:
+        bin_max = np.max(mydb[data_val]).value
+    
+    # nbin+1 not nbin to take care of fence post 
+    mybins = np.linspace(bin_min,bin_max,nbin+1)
+
+    # select color
+    if data_val == 'blc_nspw':
+        mycolor = mycolors['blc']
+        vals = mydb[data_val]/mydb['blc_ntunings']
+        #vals = mydb[data_val]
+    elif data_val == 'wsu_nspw_early':
+        mycolor = mycolors['early']
+        vals = mydb[data_val]
+    elif data_val == 'wsu_nspw_later_2x':
+        mycolor = mycolors['later_2x']
+        vals = mydb[data_val]
+    elif data_val == 'wsu_nspw_later_4x':
+        mycolor = mycolors['later_4x']
+        vals = mydb[data_val]
+    else:
+        print("Data value not found. Using default color.")
+        mycolor = 'black'
+        
+    fig, ax1 = plt.subplots()
+    
+    myhist = ax1.hist(vals,bins=mybins,
+                      color=mycolor,
+                      weights=mydb['weights_all'])
+
+    ax1.set_ylim((0,1))
+    
+    ax1.set_xlabel('Number of spectral windows')
+    ax1.set_ylabel('Fraction of time')
+
+    ax1.set_title(title)
+    
+  
+    if pltname:
+        plt.savefig(pltname)
+    
+    
     
 def plot_productsize_comparison(mydb,
                                 plot_title='Product Size',
