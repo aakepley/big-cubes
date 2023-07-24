@@ -854,6 +854,11 @@ def create_per_mous_db(mydb):
                 myval = np.sum(mygroup[mykey])
                 newdb_dict[mykey].append(myval)
 
+            elif (re.match('blc_productsize',mykey)):
+                myval = np.sum(mygroup[mykey])
+                newdb_dict[mykey].append(myval)
+
+                
             # take mean
             elif mykey in ['blc_freq','wsu_freq']:
                 myval = np.mean(mygroup[mykey])
@@ -888,6 +893,8 @@ def create_per_mous_db(mydb):
 
         if mykey == 'target_name':
             mous_db.remove_column(mykey)
+
+    # recalculate target total
             
     return mous_db
 

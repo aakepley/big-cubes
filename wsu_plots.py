@@ -1194,6 +1194,7 @@ def plot_productsize_result_hist(mydb,
                                  bin_min=-1,
                                  bin_max=-1,
                                  nbin=10,
+                                 log=True,
                                  data_val='initialprodsize',
                                  title='',
                                  add_wavg=False,
@@ -1243,13 +1244,13 @@ def plot_productsize_result_hist(mydb,
     fig, ax1 = plt.subplots()
     
     myhist = ax1.hist(mydb[data_val].to('TB').value,bins=mybins,
-                      log=True,
+                      log=log,
                       color=mycolor,
                       weights=mydb['weights_all'])
 
     if data_val == 'mitigatedprodsize':
         myhist = ax1.hist(mydb['initialprodsize'].to('TB').value,bins=mybins,
-                          log=True,
+                          log=log,
                           color=mycolor,
                           histtype='step',
                           linestyle=':',
@@ -1452,6 +1453,7 @@ def plot_productsize_comparison(mydb,
     
 
 def plot_datavol_comparison(mydb,
+                            log=True,
                             plot_title="Visibility Data Volume",
                             figname=None):
     '''
@@ -1526,6 +1528,7 @@ def plot_datavol_comparison(mydb,
         plt.savefig(figname)
 
 def plot_datavol_result_hist(mydb,
+                             log=True,
                              bin_min=-1,
                              bin_max=-1,
                              nbin=10,
@@ -1581,7 +1584,7 @@ def plot_datavol_result_hist(mydb,
     fig, ax1 = plt.subplots()
     
     myhist = ax1.hist(mydb[data_val].to('TB').value,bins=mybins,
-                      log=True,
+                      log=log,
                       color=mycolor,
                       weights=mydb['weights_all'])
 
@@ -1687,6 +1690,7 @@ def plot_datarate_result_hist(mydb,
                               bin_min=-1,
                               bin_max=-1,   
                               nbin=10,
+                              log=True,
                               data_val = 'blc_datarate_typical', 
                               title='',
                               add_wavg=False,
@@ -1740,7 +1744,7 @@ def plot_datarate_result_hist(mydb,
     fig, ax1 = plt.subplots()
     
     myhist = ax1.hist(mydb[data_val].value,bins=mybins,
-                      log=True,
+                      log=log,
                       color=mycolor,
                       weights=mydb['weights_all'])
 
@@ -1754,7 +1758,7 @@ def plot_datarate_result_hist(mydb,
         ax1.text(wavg+wavg*0.1,0.7, '{:5.2e} GB/s'.format(wavg),
                  horizontalalignment='left',size=12)
 
-        ax1.set_xlabel('Data Rate (GB/s)')
+    ax1.set_xlabel('Data Rate (GB/s)')
     ax1.set_ylabel('Fraction of time')
 
     ax1.set_title(title)
@@ -1997,3 +2001,693 @@ def plot_soc_result_cumulative(mydb,
     
     if pltname:
         plt.savefig(pltname)
+
+
+
+def productsize_comparison_hist_plot(mydb,
+                                stage='early',
+                                blc_mitigated=True,
+                                wsu_mitigated=False,
+                                plot_title = 'WSU - Early',
+                                pltname=None):
+
+    '''
+    Purpose: Compare WSU and BLC productsizes as a function of productsize
+
+    Inputs: WSU MOUS data base
+
+    Output: plot showing comaprison between BLC and WSU for different BLC productsizes
+
+    Date        Programmer      Description of Changes
+    ------------------------------------------------------ 
+    6/14/2023   A.A. Kepley     Original Code
+    '''
+
+    from matplotlib.gridspec import GridSpec
+
+    if blc_mitigated:
+        blc_val = 'mitigatedprodsize'
+        xaxis_label = 'Log10 Mitigated BLC Product Size ('  + mydb[blc_val].unit.to_string() + ')'
+    else:
+        blc_val = 'initialprodsize'
+        xaxis_label = 'Log10 Initial BLC Product Size (' + mydb[blc_val].unit.to_string() + ')'
+
+
+    wsu_val = 'wsu_productsize_'+stage+'_stepped2' 
+    if wsu_mitigated:
+        wsu_val = wsu_val + '_mit'
+        yaxis_label = 'Log10 WSU Mitigated Product Size  (' + mydb[wsu_val].unit.to_string() + ')'
+    else:
+        yaxis_label = 'Log10 WSU Product Size (' + mydb[wsu_val].unit.to_string() + ')'
+        
+    if wsu_val not in mydb.columns:
+        print("Error. WSU VAL not in data base.")
+        return
+    
+
+    xaxis_vals = mydb[blc_val].value.filled(np.nan)
+    yaxis_vals = mydb[wsu_val].value
+
+
+    ratio = mydb[wsu_val].value / mydb[blc_val].value.filled(np.nan)
+    ratio_median = np.nanmedian(ratio)
+    
+    xaxis_bins = np.arange(np.nanmin(np.log10(xaxis_vals)), np.nanmax(np.log10(xaxis_vals)), 0.2)
+    yaxis_bins = np.arange(np.nanmin(np.log10(yaxis_vals)), np.nanmax(np.log10(yaxis_vals)), 0.2)
+    
+    fig = plt.figure(figsize=(8,8))
+
+    gs = GridSpec(3,3)
+    ax_main = plt.subplot(gs[1:3,:2])
+    ax_xdist = plt.subplot(gs[0,:2])
+    ax_ydist = plt.subplot(gs[1:3,2],sharey=ax_main)
+
+
+    ax_main.hist2d(np.log10(xaxis_vals), np.log10(yaxis_vals),
+                   bins=[xaxis_bins,yaxis_bins])
+    ax_main.set_xlabel(xaxis_label)
+    ax_main.set_ylabel(yaxis_label)
+
+    ax_main.plot(xaxis_bins, xaxis_bins+0,color='lightgray',linewidth=2)
+    ax_main.text(2.6,2.25+0.35,'1x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+
+    ax_main.plot(xaxis_bins, xaxis_bins+1,color='lightgray')
+    ax_main.text(2.6,2.25+1+0.35,'10x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+
+    ax_main.plot(xaxis_bins, xaxis_bins+2,color='lightgray')
+    ax_main.text(2.6,2.25+2+0.35,'100x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+
+    ax_main.text(0.05,0.9,plot_title,color='white',size=16,weight='bold',transform=ax_main.transAxes)
+
+    ax_main.plot(xaxis_bins,xaxis_bins+np.log10(ratio_median),color='lightgray',linewidth=2,linestyle=':',label='median')
+
+    #ax_main.legend(loc='lower right')
+    
+    hist_color='darkgrey'
+    cum_color='darkorange'
+    
+    ax_ydist.hist(np.log10(yaxis_vals),orientation='horizontal',bins=100,
+                   align='mid',density=True,color=hist_color)
+    ax_ydist.set_xlabel('Fraction')
+
+    ax_ydist_cum = ax_ydist.twiny()
+    ax_ydist_cum.hist(np.log10(yaxis_vals),
+                      weights=yaxis_vals/1e6,##PB
+                      orientation='horizontal',bins=100,align='mid',
+                      density=False,cumulative=True,histtype='step',color=cum_color)
+    ax_ydist_cum.set_xlabel('Total over \n2 cycles (PB)',color=cum_color,weight='bold')
+
+    
+    #ax_ydist_cum.hist(np.log10(yaxis_vals),
+    #                  orientation='horizontal',bins=100,align='mid',
+    #                  density=True,cumulative=True,histtype='step',color=cum_color)
+    #ax_ydist_cum.axvline(0.5,color=cum_color,linestyle=':')
+    #ax_ydist_cum.set_xlabel('Cumulative\nDistribution',color=cum_color,weight='bold')
+
+
+    
+    ax_xdist.hist(np.log10(xaxis_vals),bins=100, density=True,color=hist_color)
+    ax_xdist.set_ylabel('Fraction')
+    
+    ax_xdist_cum = ax_xdist.twinx()
+    ax_xdist_cum.hist(np.log10(xaxis_vals),
+                      weights=xaxis_vals/1e6, ##PB
+                      bins=100,align='mid',
+                      density=False,cumulative=True,histtype='step',color=cum_color)
+    ax_xdist_cum.set_ylabel('Total over \n2 cycles (PB)',color=cum_color,weight='bold')
+    
+    #ax_xdist_cum.hist(np.log10(xaxis_vals),
+    #                  bins=100,align='mid',
+    #                  density=True,cumulative=True,histtype='step',color=cum_color)
+
+    #ax_xdist_cum.axhline(0.5,color=cum_color,linestyle=':')
+    #ax_xdist_cum.set_ylabel('Cumulative\nDistribution',color=cum_color,weight='bold')
+
+    if pltname:
+        plt.savefig(pltname)
+        
+
+def productsize_ratio_hist_plot(mydb,
+                           stage='early',
+                           blc_mitigated=True,
+                           wsu_mitigated=False,
+                           plot_title='WSU - Early',
+                           pltname=None):
+
+
+    '''
+    Purpose: show ratio between WSU and BLC productsizes as function of productsize
+
+    Inputs: WSU MOUS data base
+
+    Output: Plot showing ratio between BLC and WSU for different BLC productsizes
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    6/14/2023   A.A. Kepley     Original Code
+
+    '''
+
+    from matplotlib.gridspec import GridSpec
+
+    if blc_mitigated:
+        blc_val = 'mitigatedprodsize'
+        xaxis_label = 'Mitigated BLC Product Size' 
+    else:
+        blc_val = 'initialprodsize'
+        xaxis_label = 'Initial BLC Product Size'
+
+    wsu_val = 'wsu_productsize_'+stage+'_stepped2'
+
+    if wsu_mitigated:
+        wsu_val = wsu_val + '_mit'
+        yaxis_label = 'Log10 (WSU Mitigated Product Size  / ' + xaxis_label + ')'
+    else:
+        yaxis_label = 'Log10 (WSU Product Size / ' + xaxis_label + ')'
+        
+    if wsu_val not in mydb.columns:
+        print("Error. WSU VAL not in data base.")
+        return
+    
+    xaxis_label = 'Log10 ' + xaxis_label + ' ('  + mydb[blc_val].unit.to_string() + ')'
+
+    
+    ratio = mydb[wsu_val].value / mydb[blc_val].value.filled(np.nan)
+    xaxis_vals = mydb[blc_val].value.filled(np.nan)
+
+    #print("<=1")
+    #idx = ratio <= 1.0 
+    #print(np.sum(idx) / len(mydb[wsu_val]))
+
+    #print("<=5")
+    #idx = ratio <= 5.0
+    #print(np.sum(idx) / len(mydb[wsu_val]))
+
+    #print("<=10")
+    #idx = ratio <= 10.0
+    #print(np.sum(idx) / len(mydb[wsu_val]))
+
+    #print("average ratio")
+    #print(np.nanmean(ratio))
+
+    #print("log10 average ratio")
+    #print(np.log10(np.nanmean(ratio)))
+
+    ratio_median = np.nanmedian(ratio)
+    print("median ratio")
+    print(ratio_median)
+
+    print("max ratio")
+    print(np.nanmax(ratio))
+
+    
+    xaxis_bins = np.arange(np.nanmin(np.log10(xaxis_vals)), np.nanmax(np.log10(xaxis_vals)), 0.2)
+    ratio_bins = np.arange(np.nanmin(np.log10(ratio)), np.nanmax(np.log10(ratio)), 0.2)
+    
+    fig = plt.figure(figsize=(8,6))
+
+    gs = GridSpec(1,2,width_ratios=(4,1))
+    ax_main = plt.subplot(gs[0,0])
+    #ax_xdist = plt.subplot(gs[0,:2])
+    ax_ydist = plt.subplot(gs[0,1],sharey=ax_main)
+
+
+    ax_main.hist2d(np.log10(xaxis_vals), np.log10(ratio),
+                   bins=[xaxis_bins,ratio_bins])
+    ax_main.set_xlabel(xaxis_label)
+    ax_main.set_ylabel(yaxis_label)
+
+    xpos = 2.6
+    offset=0.01
+    ax_main.plot(xaxis_bins, np.ones(len(xaxis_bins))*0,color='lightgray',linewidth=2)
+    ax_main.text(xpos,0+offset,'1x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+
+    ax_main.plot(xaxis_bins, np.ones(len(xaxis_bins))*1,color='lightgray',label='10x')
+    ax_main.text(xpos,1+offset,'10x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+
+    ax_main.plot(xaxis_bins, np.ones(len(xaxis_bins))*2,color='lightgray',label='100x')
+    ax_main.text(xpos,2+offset,'100x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+
+    ax_main.text(0.05,0.9,plot_title,color='white',size=16,weight='bold',transform=ax_main.transAxes)
+
+    ax_main.axhline(np.log10(ratio_median), color='lightgray', linewidth=2, linestyle=':')
+    ax_main.text(-1.75,np.log10(ratio_median)+offset,'Median = {:3.1f}'.format(ratio_median),color='lightgrey',size=16, weight='bold',horizontalalignment='left')
+
+    
+    hist_color='darkgrey'
+    cum_color='darkorange'
+
+    (counts, bins,patches) = ax_ydist.hist(np.log10(ratio),orientation='horizontal',bins=100,
+                   align='mid',density=True,color=hist_color)
+    ax_ydist.set_xlabel('Fraction')
+
+    peak_val_log = bins[np.argmax(counts)]
+    print('log10 (peak)')
+    print(peak_val_log)
+
+    print('peak')
+    print(10**peak_val_log)
+    
+    
+    ax_ydist_cum = ax_ydist.twiny()
+    ax_ydist_cum.hist(np.log10(ratio),orientation='horizontal',bins=100,align='mid',
+                      density=True,cumulative=True,histtype='step',color=cum_color)
+    ax_ydist_cum.axhline(np.log10(ratio_median),color='black',linewidth=2,linestyle=':')
+    #ax_ydist_cum.axvline(0.5,color=cum_color,linestyle=':')
+    ax_ydist_cum.set_xlabel('Cumulative\nDistribution',color=cum_color,weight='bold')
+ 
+    
+    #ax_xdist.hist(np.log10(xaxis_vals),bins=100, density=True,color=hist_color)
+
+    #ax_xdist_cum = ax_xdist.twinx()
+    #ax_xdist_cum.hist(np.log10(xaxis_vals),bins=100,align='mid',
+    #                  density=False,cumulative=True,histtype='step',color=cum_color)
+    #ax_xdist_cum.axhline(0.5,color=cum_color,linestyle=':')
+    #ax_xdist_cum.set_ylabel('Cumulative\nDistribution',color=cum_color,weight='bold')
+
+    if pltname:
+        plt.savefig(pltname)
+    
+        
+def cubesize_comparison_hist_plot(mydb,
+                             blc_mitigated=True,
+                             wsu_mitigated=False,
+                             plot_title='WSU - Early',
+                             pltname=None):
+
+    
+    from matplotlib.gridspec import GridSpec
+
+    if blc_mitigated:
+        blc_val = 'mitigatedcubesize'
+        xaxis_label = 'Log10 Mitigated BLC Cube Size'
+    else:
+        blc_val = 'predcubesize'
+        xaxis_label = 'Log10 Initial BLC Cube Size'
+
+    xaxis_label = xaxis_label + " (" + mydb[blc_val].unit.to_string() + ')'
+        
+    wsu_val = 'wsu_cubesize_stepped2'
+
+    if wsu_mitigated:
+        wsu_val = wsu_val + '_mit'
+        yaxis_label = 'Log10 WSU Mitigated Cube Size '
+    else:
+        yaxis_label = 'Log10 WSU Cube Size' 
+
+    yaxis_label = yaxis_label + " (" + mydb[wsu_val].unit.to_string() + ')'
+
+    xaxis_vals = mydb[blc_val].value.filled(np.nan)
+    yaxis_vals = mydb[wsu_val].value
+
+    xaxis_bins = np.arange(np.nanmin(np.log10(xaxis_vals)), np.nanmax(np.log10(xaxis_vals)), 0.2)
+    yaxis_bins = np.arange(np.nanmin(np.log10(yaxis_vals)), np.nanmax(np.log10(yaxis_vals)), 0.2)
+    
+    fig = plt.figure(figsize=(8,8))
+
+    gs = GridSpec(3,3)
+    ax_main = plt.subplot(gs[1:3,:2])
+    ax_xdist = plt.subplot(gs[0,:2])
+    ax_ydist = plt.subplot(gs[1:3,2],sharey=ax_main)
+
+    ax_main.hist2d(np.log10(xaxis_vals), np.log10(yaxis_vals),
+                   bins=[xaxis_bins,yaxis_bins])
+    ax_main.set_xlabel(xaxis_label)
+    ax_main.set_ylabel(yaxis_label)
+
+    ax_main.plot(xaxis_bins, xaxis_bins+0,color='lightgray',linewidth=2)
+    ax_main.text(1.0,0.9+0.1,'1x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+
+    ax_main.plot(xaxis_bins, xaxis_bins+1,color='lightgray',label='10x')
+    ax_main.text(1.0,0.9+1+0.1,'10x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+
+    ax_main.plot(xaxis_bins, xaxis_bins+2,color='lightgray',label='100x')
+    ax_main.text(1.0,0.9+2+0.1,'100x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+
+    ax_main.text(0.05,0.85,plot_title,color='white',size=16,weight='bold',transform=ax_main.transAxes)
+        
+    hist_color='darkgrey'
+    cum_color='darkorange'
+    
+    ax_ydist.hist(np.log10(yaxis_vals),orientation='horizontal',bins=100,
+                   align='mid',density=True,color=hist_color)
+    ax_ydist.set_xlabel('Fraction')
+
+    ax_ydist_cum = ax_ydist.twiny()
+    ax_ydist_cum.hist(np.log10(yaxis_vals),orientation='horizontal',bins=100,align='mid',
+                      density=True,cumulative=True,histtype='step',color=cum_color)
+    #ax_ydist_cum.axvline(0.5,color=cum_color,linestyle=':')
+    ax_ydist_cum.set_xlabel('Cumulative\nDistribution',color=cum_color,weight='bold')
+
+    
+    ax_xdist.hist(np.log10(xaxis_vals),bins=100, density=True,color=hist_color)
+    ax_xdist.set_ylabel('Fraction')
+    
+    ax_xdist_cum = ax_xdist.twinx()
+    ax_xdist_cum.hist(np.log10(xaxis_vals),bins=100,align='mid',
+                      density=True,cumulative=True,histtype='step',color=cum_color)
+    #ax_xdist_cum.axhline(0.5,color=cum_color,linestyle=':')
+    ax_xdist_cum.set_ylabel('Cumulative\nDistribution',color=cum_color,weight='bold')
+        
+    if pltname:
+        plt.savefig(pltname)
+
+    
+def cubesize_ratio_hist_plot(mydb,
+                        blc_mitigated=True,
+                        wsu_mitigated=False,
+                        plot_title='WSU - Early',
+                        pltname=None):
+
+
+    '''
+    Purpose: show ratio between WSU and BLC productsizes as function of productsize
+
+    Inputs: WSU MOUS data base
+
+    Output: Plot showing ratio between BLC and WSU for different BLC productsizes
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    6/14/2023   A.A. Kepley     Original Code
+
+    '''
+
+    from matplotlib.gridspec import GridSpec
+
+    if blc_mitigated:
+        blc_val = 'mitigatedcubesize'
+        xaxis_label = 'Mitigated BLC Cube Size'
+    else:
+        blc_val = 'predcubesize'
+        xaxis_label = 'Initial BLC Cube Size'
+
+    wsu_val = 'wsu_cubesize_stepped2'
+
+    if wsu_mitigated:
+        wsu_val = wsu_val + '_mit'
+        yaxis_label = 'Log10 (WSU Mitigated Cube Size  / ' + xaxis_label + ')'
+    else:
+        yaxis_label = 'Log10 (WSU Cube Size / ' + xaxis_label + ')'
+
+    xaxis_label = 'Log10 '+ xaxis_label + " (" + mydb[blc_val].unit.to_string() + ')'
+        
+    if wsu_val not in mydb.columns:
+        print("Error. WSU VAL not in data base.")
+        return
+    
+    
+    ratio = mydb[wsu_val].value / mydb[blc_val].value.filled(np.nan)
+    xaxis_vals = mydb[blc_val].value.filled(np.nan)
+
+    xaxis_bins = np.arange(np.nanmin(np.log10(xaxis_vals)), np.nanmax(np.log10(xaxis_vals)), 0.2)
+    ratio_bins = np.arange(np.nanmin(np.log10(ratio)), np.nanmax(np.log10(ratio)), 0.2)
+    
+    fig = plt.figure(figsize=(8,8))
+
+    gs = GridSpec(3,3)
+    ax_main = plt.subplot(gs[1:3,:2])
+    ax_xdist = plt.subplot(gs[0,:2])
+    ax_ydist = plt.subplot(gs[1:3,2],sharey=ax_main)
+
+
+    ax_main.hist2d(np.log10(xaxis_vals), np.log10(ratio),
+                   bins=[xaxis_bins,ratio_bins])
+    ax_main.set_xlabel(xaxis_label)
+    ax_main.set_ylabel(yaxis_label)
+
+    ax_main.plot(xaxis_bins, np.ones(len(xaxis_bins))*0,color='lightgray',linewidth=2)
+    ax_main.text(1.8,0+0.1,'1x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+
+    ax_main.plot(xaxis_bins, np.ones(len(xaxis_bins))*1.0,color='lightgray',label='10x')
+    ax_main.text(1.8,1+0.1,'10x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+
+    ax_main.plot(xaxis_bins, np.ones(len(xaxis_bins))*2.0,color='lightgray',label='100x')
+    ax_main.text(1.8,2+0.1,'100x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+    
+    ax_main.text(0.1,0.9,plot_title,color='white',size=16,weight='bold',transform=ax_main.transAxes)
+    
+    hist_color='darkgrey'
+    cum_color='darkorange'
+
+
+    ax_ydist.hist(np.log10(ratio),orientation='horizontal',bins=100,
+                  align='mid',density=True,color=hist_color)
+    ax_ydist.set_xlabel('Fraction')
+
+    ax_ydist_cum = ax_ydist.twiny()
+    ax_ydist_cum.hist(np.log10(ratio),orientation='horizontal',bins=100,align='mid',
+                      density=True,cumulative=True,histtype='step',color=cum_color)
+    ax_ydist_cum.axvline(0.5,color=cum_color,linestyle=':')
+    ax_ydist_cum.set_xlabel('Cumulative\nDistribution',color=cum_color,weight='bold')
+ 
+    
+    ax_xdist.hist(np.log10(xaxis_vals),bins=100, density=True,color=hist_color)
+
+    ax_xdist_cum = ax_xdist.twinx()
+    ax_xdist_cum.hist(np.log10(xaxis_vals),bins=100,align='mid',
+                      density=True,cumulative=True,histtype='step',color=cum_color)
+    ax_xdist_cum.axhline(0.5,color=cum_color,linestyle=':')
+    ax_xdist_cum.set_ylabel('Cumulative\nDistribution',color=cum_color,weight='bold')
+        
+    if pltname:
+        plt.savefig(pltname)
+
+def visibility_size_comparison_hist_plot(mydb,
+                                    stage='early',
+                                    plot_title='WSU - Early',
+                                    pltname=None):
+
+    '''
+    Purpose: Compare the WSU and BLC visibility sizes as a function of visibility size
+
+    Inputs: WSU MOUS data base
+
+    Output: plot showing comparison between BLC and WSU for different BLC productsizes
+
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    6/26/2023   A.A. Kepley     Original Code
+
+    '''
+
+    from matplotlib.gridspec import GridSpec
+
+    blc_val = 'blc_datavol_typical_total'
+    xaxis_label = 'BLC Visibility Data Volume'
+    
+    wsu_val = 'wsu_datavol_'+stage+'_stepped2_typical_total'
+    yaxis_label = 'Log 10 (WSU Visibility data Volume / '+ xaxis_label + ')'
+
+    xaxis_label = 'Log10 ' + xaxis_label + ' (' + mydb[blc_val].unit.to_string() + ')'
+
+    
+    ratio = mydb[wsu_val].value / mydb[blc_val].value
+    ratio_median = np.nanmedian(ratio)
+    
+    xaxis_vals = mydb[blc_val].value
+    xaxis_weights = mydb['weights_all']
+
+    yaxis_vals = mydb[wsu_val].value
+
+    xaxis_bins = np.arange(np.nanmin(np.log10(xaxis_vals)), np.nanmax(np.log10(xaxis_vals)), 0.2)
+    yaxis_bins = np.arange(np.nanmin(np.log10(yaxis_vals)), np.nanmax(np.log10(yaxis_vals)), 0.2)
+    
+    fig = plt.figure(figsize=(8,8))
+
+    gs = GridSpec(3,3)
+    ax_main = plt.subplot(gs[1:3,:2])
+    ax_xdist = plt.subplot(gs[0,:2])
+    ax_ydist = plt.subplot(gs[1:3,2],sharey=ax_main)
+
+    ax_main.hist2d(np.log10(xaxis_vals), np.log10(yaxis_vals),
+                   bins=[xaxis_bins,yaxis_bins])
+    ax_main.set_xlabel(xaxis_label)
+    ax_main.set_ylabel(yaxis_label)
+
+    ax_main.plot(xaxis_bins, xaxis_bins+0,color='lightgray',linewidth=2)
+    ax_main.text(2.6,2.25+0.35,'1x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+
+    ax_main.plot(xaxis_bins, xaxis_bins+1,color='lightgray')
+    ax_main.text(2.6,2.25+1+0.35,'10x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+
+    ax_main.plot(xaxis_bins, xaxis_bins+2,color='lightgray')
+    ax_main.text(2.6,2.25+2+0.35,'100x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+
+    ax_main.text(0.05,0.9,plot_title,color='white',size=16,weight='bold',transform=ax_main.transAxes)
+
+    ax_main.plot(xaxis_bins,xaxis_bins+np.log10(ratio_median),color='lightgray',linewidth=2,linestyle=':',label='median')
+
+    #ax_main.legend(loc='lower right')
+    
+    hist_color='darkgrey'
+    cum_color='darkorange'
+    
+    ax_ydist.hist(np.log10(yaxis_vals),orientation='horizontal',bins=100,
+                   align='mid',density=True,color=hist_color)
+    ax_ydist.set_xlabel('Fraction')
+
+    ax_ydist_cum = ax_ydist.twiny()
+    ax_ydist_cum.hist(np.log10(yaxis_vals),
+                      weights=yaxis_vals/1e6,##PB
+                      orientation='horizontal',bins=100,align='mid',
+                      density=False,cumulative=True,histtype='step',color=cum_color)
+    ax_ydist_cum.set_xlabel('Total over \n2 cycles (PB)',color=cum_color,weight='bold')
+
+    
+    #ax_ydist_cum.hist(np.log10(yaxis_vals),
+    #                  orientation='horizontal',bins=100,align='mid',
+    #                  density=True,cumulative=True,histtype='step',color=cum_color)
+    #ax_ydist_cum.axvline(0.5,color=cum_color,linestyle=':')
+    #ax_ydist_cum.set_xlabel('Cumulative\nDistribution',color=cum_color,weight='bold')
+
+
+    
+    ax_xdist.hist(np.log10(xaxis_vals),bins=100, density=True,color=hist_color)
+    ax_xdist.set_ylabel('Fraction')
+    
+    ax_xdist_cum = ax_xdist.twinx()
+    ax_xdist_cum.hist(np.log10(xaxis_vals),
+                      weights=xaxis_vals/1e6, ##PB
+                      bins=100,align='mid',
+                      density=False,cumulative=True,histtype='step',color=cum_color)
+    ax_xdist_cum.set_ylabel('Total over \n2 cycles (PB)',color=cum_color,weight='bold')
+    
+    #ax_xdist_cum.hist(np.log10(xaxis_vals),
+    #                  bins=100,align='mid',
+    #                  density=True,cumulative=True,histtype='step',color=cum_color)
+
+    #ax_xdist_cum.axhline(0.5,color=cum_color,linestyle=':')
+    #ax_xdist_cum.set_ylabel('Cumulative\nDistribution',color=cum_color,weight='bold')
+
+    if pltname:
+        plt.savefig(pltname)
+
+
+
+    
+def visibility_size_ratio_hist_plot(mydb,
+                                    stage='early',
+                                    plot_title='WSU - Early',
+                                    pltname=None):
+
+    '''
+    Purpose: show the ratio between WSU and BLC visibility volumes
+
+    Inputs: WSU MOUS data base
+
+    Output: plot showing ratio between BLC and WSU for different BLC product sizes
+
+    Date        Programmer      Description of Changes
+    ------------------------------------------------------
+    6/21/2023   A.A. Kepley     Original Code
+    '''
+
+    from matplotlib.gridspec import GridSpec
+
+    blc_val = 'blc_datavol_typical_total'
+    xaxis_label = 'BLC Visibility Data Volume'
+    
+    wsu_val = 'wsu_datavol_'+stage+'_stepped2_typical_total'
+    yaxis_label = 'Log 10 (WSU Visibility data Volume / '+ xaxis_label + ')'
+
+    xaxis_label = 'Log10 ' + xaxis_label + ' (' + mydb[blc_val].unit.to_string() + ')'
+
+    
+    ratio = mydb[wsu_val].value / mydb[blc_val].value
+    xaxis_vals = mydb[blc_val].value
+    xaxis_weights = mydb['weights_all']
+
+    #print("<=1")
+    #idx = ratio <= 1.0 
+    #print(np.sum(idx) / len(mydb[wsu_val]))
+
+    #print("<=5")
+    #idx = ratio <= 5.0
+    #print(np.sum(idx) / len(mydb[wsu_val]))
+
+    #print("<=10")
+    #idx = ratio <= 10.0
+    #print(np.sum(idx) / len(mydb[wsu_val]))
+
+    #print("average ratio")
+    #print(np.nanmean(ratio))
+
+    #print("log10 average ratio")
+    #print(np.log10(np.nanmean(ratio)))
+
+    ratio_median = np.nanmedian(ratio)
+    print('median ratio')
+    print(ratio_median)
+
+    print('max ratio')
+    print(np.nanmax(ratio))
+    
+    
+    xaxis_bins = np.arange(np.nanmin(np.log10(xaxis_vals)), np.nanmax(np.log10(xaxis_vals)), 0.2)
+    ratio_bins = np.arange(np.nanmin(np.log10(ratio)), np.nanmax(np.log10(ratio)), 0.2)
+    
+    fig = plt.figure(figsize=(8,6))
+
+    gs = GridSpec(1,2,width_ratios=(4,1))
+    ax_main = plt.subplot(gs[0,0])
+    #ax_xdist = plt.subplot(gs[0,:2])
+    ax_ydist = plt.subplot(gs[0,1],sharey=ax_main)
+
+
+    ax_main.hist2d(np.log10(xaxis_vals), np.log10(ratio),
+                   bins=[xaxis_bins,ratio_bins])
+    ax_main.set_xlabel(xaxis_label)
+    ax_main.set_ylabel(yaxis_label)
+
+    xpos = 2.95
+    offset = 0.04
+    ax_main.plot(xaxis_bins, np.ones(len(xaxis_bins))*0,color='lightgray',linewidth=2)
+    ax_main.text(xpos,0+offset,'1x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+
+    ax_main.plot(xaxis_bins, np.ones(len(xaxis_bins))*1,color='lightgray',label='10x')
+    ax_main.text(xpos,1+offset,'10x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+
+    ax_main.plot(xaxis_bins, np.ones(len(xaxis_bins))*2,color='lightgray',label='100x')
+    ax_main.text(xpos,2+offset,'100x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+
+    ax_main.text(0.05,0.9,plot_title,color='white',size=16,weight='bold',transform=ax_main.transAxes)
+
+    ax_main.axhline(np.log10(ratio_median), color='lightgray', linewidth=2, linestyle=':')
+    ax_main.text(-1.1,np.log10(ratio_median)+offset,'Median = {:3.1f}'.format(ratio_median),color='lightgrey',size=16, weight='bold',horizontalalignment='left')
+    
+    hist_color='darkgrey'
+    cum_color='darkorange'
+
+    (counts, bins,patches) = ax_ydist.hist(np.log10(ratio),orientation='horizontal',bins=100,
+                   align='mid',density=True,color=hist_color)
+    ax_ydist.set_xlabel('Fraction')
+
+    #peak_val_log = bins[np.argmax(counts)]
+    #print('log10 (peak)')
+    #print(peak_val_log)
+
+    #print('peak')
+    #print(10**peak_val_log)
+    
+
+    
+    ax_ydist_cum = ax_ydist.twiny()
+    ax_ydist_cum.hist(np.log10(ratio),orientation='horizontal',bins=100,align='mid',
+                      density=True,cumulative=True,histtype='step',color=cum_color)
+    #ax_ydist_cum.axvline(0.5,color=cum_color,linestyle=':')
+    ax_ydist_cum.axhline(np.log10(ratio_median),color='black',linewidth=2,linestyle=':')
+    ax_ydist_cum.set_xlabel('Cumulative\nDistribution',color=cum_color,weight='bold')
+ 
+    
+    #ax_xdist.hist(np.log10(xaxis_vals),bins=100, density=True,color=hist_color)
+
+    #ax_xdist_cum = ax_xdist.twinx()
+    #ax_xdist_cum.hist(np.log10(xaxis_vals),bins=100,align='mid',
+    #                  density=False,cumulative=True,histtype='step',color=cum_color)
+    #ax_xdist_cum.axhline(0.5,color=cum_color,linestyle=':')
+    #ax_xdist_cum.set_ylabel('Cumulative\nDistribution',color=cum_color,weight='bold')
+
+    if pltname:
+        plt.savefig(pltname)
+    
