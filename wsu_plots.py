@@ -16,25 +16,39 @@ mycolors = {'blc': 'darkslateblue',
             'later_2x': 'seagreen',
             'later_4x':'firebrick' }
 
-### NOT SURE THIS IS HELPFUL INFORMATION ANY MORE
-# things needed by all functions
-band2specscan = {'nchan':595200.0,
+# TODO: Double-check these numbers
+# setup fiducial values.
+
+## this is early and later 2x value. later 4x is doubled.
+band2specscan = {'nchan':595200.0, 
                  'imsize':10670.0,
-                 'vis_rate_typical': 3063.86,
-                 'vis_rate_array':4055.86,
-                 'vis_rate_all':6079.54,
+                 'datarate_typical':1.77, #GB/S
+                 'vis_rate_typical': 3063.86, ## Gvis/hr
                  'freq':75.0,
                  'bandwidth':16.0}
 
+
+## Crystal's original calculation did 140 FS instead of max of 160 FS. Probably should do 160,
+## since we are still selling 4x BW. But will likely be closer to 3x BW
+band2specscan_later_4x = {'nchan': 1190400.0, 
+                          'imsize':10670.0,
+                          'datarate_typical':3.6, ## GB/s
+                          'vis_rate_typical': 6217.7257, ## Gvis/hr
+                          'freq':75.0,
+                          'bandwidth':32.0}
+
+
 band2specscan_500MBs = {'nchan':148800.0,
                         'imsize':10670.0,
-                        'vis_rate_typical': 765.97,
+                        'datarate_typical':0.444, ## GB/s                    
+                        'vis_rate_typical': 765.97, ## Gvis/hr
                         'freq':75.0,
                         'bandwidth':16.0}
 
 band2specscan_160MBs = {'nchan': 49600.0,
                         'imsize':10670.0,
-                        'vis_rate_typical': 255.32,
+                        'datarate_typical': 0.148, ## GB/s
+                        'vis_rate_typical': 255.32, ## Gvis/hr
                         'freq':75.0,
                         'bandwidth':16.0}
 
@@ -1473,7 +1487,7 @@ def plot_datavol_comparison(mydb,
              density=True,
              color=mycolors['blc'],
              linewidth=2,
-             label="BLC")
+             label="BLC/ACA")
     
     plt.hist(np.log10(mydb['wsu_datavol_early_stepped2_typical_total'].to('TB').value), cumulative=-1,histtype='step',
              bins=mybins,
@@ -1501,13 +1515,13 @@ def plot_datavol_comparison(mydb,
         
 
     plt.axhline(0.1,color='gray',linestyle=':')
-    plt.text(-3,0.1,'90% smaller')
+    plt.text(-3,0.1,'10% larger')
 
     plt.axhline(0.05,color='gray',linestyle=':')
-    plt.text(-3,0.05,'95% smaller')
+    plt.text(-3,0.05,'5% larger')
 
     plt.axhline(0.01,color='gray',linestyle=':')
-    plt.text(-3,0.01,'99% smaller')
+    plt.text(-3,0.01,'1% larger')
 
     plt.grid(which='both',axis='both',linestyle=':')
     
@@ -1608,7 +1622,8 @@ def plot_datavol_result_hist(mydb,
 
 def plot_datarate_comparison(mydb,
                              plot_title="Data Rate",
-                             figname=None):
+                             figname=None,
+                             add_band2_specscan=False):
     '''
     Purpose: compare the data rate distribution between WSU and BLC.
 
@@ -1626,7 +1641,7 @@ def plot_datarate_comparison(mydb,
              color=mycolors['blc'],
              weights=mydb['weights_all'],
              linewidth=2,
-             label="BLC")
+             label="BLC/ACA")
     
     plt.hist(np.log10(mydb['wsu_datarate_early_stepped2_typical'].value), cumulative=-1,histtype='step',
              bins=mybins,
@@ -1656,21 +1671,33 @@ def plot_datarate_comparison(mydb,
              label="later WSU (4x)")
 
     plt.axhline(0.1,color='gray',linestyle=':')
-    plt.text(-3.5,0.1,'90% smaller')
+    plt.text(-3.5,0.1,'10% larger')
     
     plt.axhline(0.05,color='gray',linestyle=':')
-    plt.text(-3.5,0.05,'95% smaller')
+    plt.text(-3.5,0.05,'5% larger')
 
     plt.axhline(0.01,color='gray',linestyle=':')
-    plt.text(-3.5,0.01,'99% smaller')
+    plt.text(-3.5,0.01,'1% larger')
 
-    plt.axvline(np.log10(0.5),color='black',linestyle=':', linewidth=2)
-    plt.text(np.log10(0.5)+0.1, 0.9, '500 MB/s limit')
+    plt.axvline(np.log10(0.070), color='gray',linestyle=':',linewidth=2)
+    plt.text(np.log10(0.070)+0.05,0.7,'Current\nlimit' ,color='gray')
+    
+    plt.axvline(np.log10(0.5),color='gray',linestyle='--', linewidth=2)
+    plt.text(np.log10(0.5)+0.05, 0.2, '500\nMB/s\nlimit',color='gray')
 
+    ## Band 2 spectral scan
+    if add_band2_specscan:
+        plt.axvline(np.log10(band2specscan['datarate_typical']),color='gray',linestyle='-',linewidth=2)
+        plt.text(np.log10(band2specscan['datarate_typical'])+0.05,0.7,'Band 2 Spectral \n Scan (2x BW)',color='gray')                        
+
+        #plt.axvline(np.log10(band2specscan_later_4x['datarate_typical']),color='gray',linestyle='-',linewidth=2)
+        #plt.text(np.log10(band2specscan_later_4x['datarate_typical']),0.06,'Max',color='gray')
+        
+        
     plt.grid(which='both',axis='both',linestyle=':')
     
     plt.xlabel('Data rate (GB/s)')
-    plt.ylabel('Fraction of Larger Data')
+    plt.ylabel('Fraction of Time at Higher Data Rates')
     
     locs, labels = plt.xticks()
 
@@ -1694,6 +1721,9 @@ def plot_datarate_result_hist(mydb,
                               data_val = 'blc_datarate_typical', 
                               title='',
                               add_wavg=False,
+                              limit = None, # data rate limit in GB
+                              limit_label = 'Data Rate Limit', # data rate limit
+                              add_band2_specscan=False,
                               pltname=None):
     '''
     Purpose: create plots and calculate result table 
@@ -1758,10 +1788,22 @@ def plot_datarate_result_hist(mydb,
         ax1.text(wavg+wavg*0.1,0.7, '{:5.2e} GB/s'.format(wavg),
                  horizontalalignment='left',size=12)
 
+    if limit:
+        ax1.axvline(limit, color='gray', linestyle='--',linewidth=2,
+                    label=limit_label)
+
+    if add_band2_specscan:
+        ax1.axvline(band2specscan['datarate_typical'],
+                    color='gray',linestyle='-',linewidth=2,
+                    label='Band 2 Spectral Scan (2x BW)')
+
+
     ax1.set_xlabel('Data Rate (GB/s)')
     ax1.set_ylabel('Fraction of time')
 
     ax1.set_title(title)
+
+    ax1.legend()
     
     if pltname:
         plt.savefig(pltname)
@@ -2477,7 +2519,7 @@ def visibility_size_comparison_hist_plot(mydb,
     xaxis_label = 'BLC Visibility Data Volume'
     
     wsu_val = 'wsu_datavol_'+stage+'_stepped2_typical_total'
-    yaxis_label = 'Log 10 (WSU Visibility data Volume / '+ xaxis_label + ')'
+    yaxis_label = 'Log 10 WSU Visibility Data Volume' + ' (' + mydb[blc_val].unit.to_string() + ')'
 
     xaxis_label = 'Log10 ' + xaxis_label + ' (' + mydb[blc_val].unit.to_string() + ')'
 
@@ -2505,20 +2547,22 @@ def visibility_size_comparison_hist_plot(mydb,
     ax_main.set_xlabel(xaxis_label)
     ax_main.set_ylabel(yaxis_label)
 
+    bin_text = 4
+    text_offset = 0.08
     ax_main.plot(xaxis_bins, xaxis_bins+0,color='lightgray',linewidth=2)
-    ax_main.text(2.6,2.25+0.35,'1x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+    ax_main.text(xaxis_bins[bin_text],xaxis_bins[bin_text]+text_offset,'1x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
 
     ax_main.plot(xaxis_bins, xaxis_bins+1,color='lightgray')
-    ax_main.text(2.6,2.25+1+0.35,'10x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+    ax_main.text(xaxis_bins[bin_text],xaxis_bins[bin_text]+1+text_offset,'10x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
 
     ax_main.plot(xaxis_bins, xaxis_bins+2,color='lightgray')
-    ax_main.text(2.6,2.25+2+0.35,'100x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
+    ax_main.text(xaxis_bins[bin_text],xaxis_bins[bin_text]+2+text_offset,'100x',color='lightgrey',size=16,weight='bold',horizontalalignment='right')
 
     ax_main.text(0.05,0.9,plot_title,color='white',size=16,weight='bold',transform=ax_main.transAxes)
 
     ax_main.plot(xaxis_bins,xaxis_bins+np.log10(ratio_median),color='lightgray',linewidth=2,linestyle=':',label='median')
 
-    #ax_main.legend(loc='lower right')
+    ax_main.legend(loc='lower right',framealpha=0.1,labelcolor='white')
     
     hist_color='darkgrey'
     cum_color='darkorange'
