@@ -1484,3 +1484,30 @@ def create_db_for_sanjay(mydb,filename='data/test.csv'):
          
     
     pass
+
+
+def write_out_db_info(mydb,filename='data/col_info.tex'):
+    '''
+    Purpose: write out data base column information so I can put into latex easily.
+
+    Inputs:  mydb
+
+    Outputs: file containing list of all columns and units in db 
+
+    Date        Programmer      Description of Changes
+    -----------------------------------------------------------------
+    8/21/2023   A.A. Kepley     Original Code
+    '''
+
+    f = open(filename,'w+')
+    
+    col_list = mydb.columns
+
+    for col in col_list:
+        if bool(mydb[col].unit):
+            f.write(" {0} & {1} & \\\\ \n".format(col, mydb[col].unit.to_string('latex')))
+        else:
+            f.write(" {0} & \\nodata & \\\\ \n".format(col))
+
+    f.close()
+   

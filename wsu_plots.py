@@ -1139,7 +1139,7 @@ def plot_cubesize_comparison(mydb,
              color=mycolors['blc'],
              linestyle=':',
              linewidth=2,
-             label="BLC (mitigated)")
+             label="BLC/ACA (mitigated)")
 
     plt.hist(np.log10(mydb['predcubesize'].value.filled(np.nan)), cumulative=-1, histtype='step',
              bins=mybins,
@@ -1148,7 +1148,7 @@ def plot_cubesize_comparison(mydb,
              color=mycolors['blc'],
              linestyle='-',
              linewidth=2,
-             label="BLC (unmitigated)")
+             label="BLC/ACA (unmitigated)")
 
     if mitigated_wsu:
 
@@ -1178,13 +1178,13 @@ def plot_cubesize_comparison(mydb,
     plt.text(np.log10(cubesizelimit)+0.1,0.5,'60GB',horizontalalignment='left')
 
     plt.axhline(0.1,color='gray',linestyle=':', linewidth=2)
-    plt.text(0,0.1,'90% smaller')
+    plt.text(-1,0.1,'10% larger')
 
     plt.axhline(0.05,color='gray',linestyle=':', linewidth=2)
-    plt.text(0,0.05,'95% smaller')
+    plt.text(-1,0.05,'5% larger')
 
     plt.axhline(0.01,color='gray',linestyle=':', linewidth=2)
-    plt.text(0,0.01,'99% smaller')
+    plt.text(-1,0.01,'1% larger')
 
     plt.grid(which='both',axis='both',linestyle=':')
 
@@ -1355,9 +1355,124 @@ def plot_spw_hist(mydb,
   
     if pltname:
         plt.savefig(pltname)
+
+
+def plot_spw_hist_all(mydb,
+                      bin_min=-1,
+                      bin_max=-1,
+                      nbin=10,
+                      title='',
+                      pltname=None):
+    '''
+    Purpose: plot the distribution of the number of spectral windows for all
+    WSU stages at one time
     
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    7/10/2023   A.A. Kepley     Original Code
+    '''
+
+    if bin_min < 0:
+        bin_min = np.min(mydb[data_val]).value
+        
+    if bin_max < 0:
+        bin_max = np.max(mydb[data_val]).value
     
+    # nbin+1 not nbin to take care of fence post 
+    mybins = np.linspace(bin_min,bin_max,nbin+1)
+
+    print(mybins)
     
+    fig, ax1 = plt.subplots()
+
+    ax1.hist(mydb['blc_nspw']/mydb['blc_ntunings'],
+             bins=mybins,
+             color=mycolors['blc'],
+             align='left',
+             alpha=0.2,
+             histtype='bar',
+             weights=mydb['weights_all'])
+    
+    ax1.hist(mydb['blc_nspw']/mydb['blc_ntunings'],
+             bins=mybins,
+             color=mycolors['blc'],
+             align='left',
+             linewidth=2,
+             histtype='step',
+             edgecolor=mycolors['blc'],
+             weights=mydb['weights_all'],
+             label='BLC/ACA')
+
+    
+    ax1. hist(mydb['wsu_nspw_early'],
+              bins=mybins,
+              color=mycolors['early'],
+              align='left',
+              alpha=0.2,
+              weights=mydb['weights_all'])
+
+
+    ax1. hist(mydb['wsu_nspw_early'],
+              bins=mybins,
+              color=mycolors['early'],
+              align='left',
+              histtype='step',
+              linewidth=2,
+              edgecolor=mycolors['early'],
+              weights=mydb['weights_all'],
+              label='early WSU')
+
+    ax1. hist(mydb['wsu_nspw_later_2x'],
+              bins=mybins,
+              color=mycolors['later_2x'],
+              align='left',
+              alpha=0.2,
+              weights=mydb['weights_all']) 
+    
+    ax1. hist(mydb['wsu_nspw_later_2x'],
+              bins=mybins,
+              color=mycolors['later_2x'],
+              align='left',
+              histtype='step',
+              linewidth=2,
+              edgecolor=mycolors['later_2x'],
+              weights=mydb['weights_all'],
+              label='Later WSU (2x)')
+
+    ax1. hist(mydb['wsu_nspw_later_4x'],
+              bins=mybins,
+              color=mycolors['later_4x'],
+              align='left',
+              alpha=0.2,
+              weights=mydb['weights_all'])
+
+    ax1. hist(mydb['wsu_nspw_later_4x'],
+              bins=mybins,
+              color=mycolors['later_4x'],
+              align='left',
+              histtype='step',
+              linewidth=2,
+              edgecolor=mycolors['later_4x'],
+              weights=mydb['weights_all'],
+              label='Later WSU (4x)')
+
+    
+    ax1.set_ylim((0,1.1))
+
+    ax1.legend(loc='upper left')
+    
+    ax1.set_xlabel('Number of spectral windows')
+    ax1.set_ylabel('Fraction of time')
+    
+    ax1.set_title(title)
+    
+  
+    if pltname:
+        plt.savefig(pltname)
+
+
+
+        
 def plot_productsize_comparison(mydb,
                                 plot_title='Product Size',
                                 mitigated_wsu=False,
@@ -1384,7 +1499,7 @@ def plot_productsize_comparison(mydb,
              color=mycolors['blc'],
              linestyle=':',
              linewidth=2,
-             label="BLC (mitigated)")
+             label="BLC/ACA (mitigated)")
 
     plt.hist(np.log10(mydb['initialprodsize'].to('TB').value.filled(np.nan)), cumulative=-1, histtype='step',
              bins=mybins,
@@ -1394,7 +1509,7 @@ def plot_productsize_comparison(mydb,
              color=mycolors['blc'],
              linestyle='-',
              linewidth=2,
-             label="BLC (unmitigated)")
+             label="BLC/ACA (unmitigated)")
 
     if mitigated_wsu:
         plt.hist(np.log10(mydb['wsu_productsize_early_stepped2_mit'].to('TB').value), cumulative=-1, histtype='step',
@@ -1436,22 +1551,22 @@ def plot_productsize_comparison(mydb,
              label="Later WSU (4x)")
 
     plt.axvline(np.log10(maxproductsize), color='black', linestyle=':')
-    plt.text(np.log10(maxproductsize)+0.1,0.65,'Current productsize limit\n(500GB)',horizontalalignment='left')
+    plt.text(np.log10(maxproductsize)+0.1,0.65,'Current product size limit\n(500GB)',horizontalalignment='left')
 
     plt.axhline(0.1,color='gray',linestyle=':')
-    plt.text(-3.5,0.1,'90% smaller')
+    plt.text(-3.5,0.1,'10% larger')
 
     plt.axhline(0.05,color='gray',linestyle=':')
-    plt.text(-3.5,0.05,'95% smaller')
+    plt.text(-3.5,0.05,'5% larger')
 
     plt.axhline(0.01,color='gray',linestyle=':')
-    plt.text(-3.5,0.01,'99% smaller')
+    plt.text(-3.5,0.01,'1% larger')
 
     plt.grid(which='both',axis='both',linestyle=':')
     
     #plt.xlabel('Log10(Product size in TB)')
     plt.xlabel('Product size in TB')
-    plt.ylabel('Fraction of Larger Products')
+    plt.ylabel('Fraction of MOUSes with Larger Products')
 
     locs, labels = plt.xticks()
 
@@ -1688,7 +1803,7 @@ def plot_datarate_comparison(mydb,
     ## Band 2 spectral scan
     if add_band2_specscan:
         plt.axvline(np.log10(band2specscan['datarate_typical']),color='gray',linestyle='-',linewidth=2)
-        plt.text(np.log10(band2specscan['datarate_typical'])+0.05,0.7,'Band 2 Spectral \n Scan (2x BW)',color='gray')                        
+        plt.text(np.log10(band2specscan['datarate_typical'])+0.05,0.52,'Band 2 \n 0.1 km/s\n (2x BW)',color='gray')                        
 
         #plt.axvline(np.log10(band2specscan_later_4x['datarate_typical']),color='gray',linestyle='-',linewidth=2)
         #plt.text(np.log10(band2specscan_later_4x['datarate_typical']),0.06,'Max',color='gray')
@@ -1795,7 +1910,7 @@ def plot_datarate_result_hist(mydb,
     if add_band2_specscan:
         ax1.axvline(band2specscan['datarate_typical'],
                     color='gray',linestyle='-',linewidth=2,
-                    label='Band 2 Spectral Scan (2x BW)')
+                    label='Band 2 0.1 km/s (2x BW)')
 
 
     ax1.set_xlabel('Data Rate (GB/s)')
@@ -2069,10 +2184,10 @@ def productsize_comparison_hist_plot(mydb,
 
     if blc_mitigated:
         blc_val = 'mitigatedprodsize'
-        xaxis_label = 'Log10 Mitigated BLC Product Size ('  + mydb[blc_val].unit.to_string() + ')'
+        xaxis_label = 'Log10 Mitigated BLC/ACA Product Size ('  + mydb[blc_val].unit.to_string() + ')'
     else:
         blc_val = 'initialprodsize'
-        xaxis_label = 'Log10 Initial BLC Product Size (' + mydb[blc_val].unit.to_string() + ')'
+        xaxis_label = 'Log10 Initial BLC/ACA Product Size (' + mydb[blc_val].unit.to_string() + ')'
 
 
     wsu_val = 'wsu_productsize_'+stage+'_stepped2' 
@@ -2093,6 +2208,12 @@ def productsize_comparison_hist_plot(mydb,
 
     ratio = mydb[wsu_val].value / mydb[blc_val].value.filled(np.nan)
     ratio_median = np.nanmedian(ratio)
+
+    print("maximum ratio")
+    print(np.nanmax(ratio))
+
+    print("median ratio")
+    print(ratio_median)
     
     xaxis_bins = np.arange(np.nanmin(np.log10(xaxis_vals)), np.nanmax(np.log10(xaxis_vals)), 0.2)
     yaxis_bins = np.arange(np.nanmin(np.log10(yaxis_vals)), np.nanmax(np.log10(yaxis_vals)), 0.2)
@@ -2123,7 +2244,7 @@ def productsize_comparison_hist_plot(mydb,
 
     ax_main.plot(xaxis_bins,xaxis_bins+np.log10(ratio_median),color='lightgray',linewidth=2,linestyle=':',label='median')
 
-    #ax_main.legend(loc='lower right')
+    ax_main.legend(loc='lower right', framealpha=0.1, labelcolor='white')
     
     hist_color='darkgrey'
     cum_color='darkorange'
@@ -2516,7 +2637,7 @@ def visibility_size_comparison_hist_plot(mydb,
     from matplotlib.gridspec import GridSpec
 
     blc_val = 'blc_datavol_typical_total'
-    xaxis_label = 'BLC Visibility Data Volume'
+    xaxis_label = 'BLC/ACA Visibility Data Volume'
     
     wsu_val = 'wsu_datavol_'+stage+'_stepped2_typical_total'
     yaxis_label = 'Log 10 WSU Visibility Data Volume' + ' (' + mydb[blc_val].unit.to_string() + ')'
@@ -2526,6 +2647,12 @@ def visibility_size_comparison_hist_plot(mydb,
     
     ratio = mydb[wsu_val].value / mydb[blc_val].value
     ratio_median = np.nanmedian(ratio)
+
+    print("Median Ratio")
+    print(ratio_median)
+    print("Max Ratio")
+    print(np.nanmax(ratio))
+    
     
     xaxis_vals = mydb[blc_val].value
     xaxis_weights = mydb['weights_all']
@@ -2735,3 +2862,27 @@ def visibility_size_ratio_hist_plot(mydb,
     if pltname:
         plt.savefig(pltname)
     
+
+def ratio_cal_total_times(mydb,
+                          pltname=None):
+    '''
+    Purpose: plot ratio of time spent on calibration and total observing time
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------------------------------
+    7/28/2023   A.A. Kepley     Original Code
+    '''
+
+    ratio = (mydb['wsu_datavol_later_4x_stepped2_typical_cal'].to('TB').value/mydb['wsu_datavol_later_4x_stepped2_typical_total'].to('TB').value)
+
+    plt.hist(ratio,histtype='bar',color='lightgray')
+    plt.axvline(np.median(ratio),color='darkblue',linestyle=':',linewidth=2,label='median')
+    plt.xlabel('(calibrator datavol  / total datavol) per mous')
+    plt.ylabel('Number of MOUSes')
+
+    print(np.median(ratio))
+
+    plt.legend()
+
+    if pltname:
+        plt.savefig(pltname)
