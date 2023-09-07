@@ -2886,3 +2886,73 @@ def ratio_cal_total_times(mydb,
 
     if pltname:
         plt.savefig(pltname)
+
+
+def plot_scientific_category_distribution(mydb, title=None):
+    '''
+
+    Purpose: plot distribution of scientific categories
+
+    TODO:
+         -- add ability to plot the archive scientific category
+         -- add ability to write out the plot
+         -- add ability to set the title
+    
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    8/28/2023   A.A. Kepley     Original Code
+    '''
+
+    cat_list = np.unique(mydb['scientific_category_proposal'])
+
+    cat_list = ['Circumstellar disks, exoplanets and the solar system',
+                'ISM, star formation and astrochemistry',
+                'Stellar evolution and the Sun',
+                'Galaxies and galactic nuclei',
+                'Cosmology and the high redshift Universe']
+
+
+    cat_count = []
+    cat_label = []
+
+    total = len(mydb)
+    
+    for mycat in cat_list:
+        idx = mydb['scientific_category_proposal'] == mycat
+        mycat_count = np.sum(idx)/total
+        cat_count.append(mycat_count)
+
+        mycat_label = "\n".join(mycat.split(' '))
+        cat_label.append(mycat_label)
+        
+        
+    # make plot
+    fig = plt.figure(figsize=(10,8),edgecolor='white',facecolor='white')
+    ax = fig.add_subplot(111)
+
+    ax.bar(cat_label,cat_count,label=cat_label)
+    ax.set_ylabel('Fraction of MOUSes')
+    ax.set_title(title)
+
+
+def plot_l80(mydb):
+    '''
+    Purpose: plot the L80 distribution
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    8/28/2023   A.A. Kepley     Original Code
+    
+    '''
+
+    fig = plt.figure(figsize=(10,8),edgecolor='white',facecolor='white')
+    ax = fig.add_subplot(111)
+
+    #ipdb.set_trace()
+    
+    myvals, mybins = np.histogram(mydb['L80'].value)
+
+    plt.stairs(myvals/np.sum(myvals),mybins,facecolor='gray',fill=True)
+    
+    ax.set_xlabel('L80 ('+ mydb['L80'].unit.to_string() + ')')
+    ax.set_title('ALMA Cycle 7 and 8 -- Band 3')

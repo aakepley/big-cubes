@@ -1511,3 +1511,98 @@ def write_out_db_info(mydb,filename='data/col_info.tex'):
 
     f.close()
    
+
+
+
+def fix_scientific_categories(mydb):
+    '''
+    Purpose: fix scientific categories given by archive to match the proposal scientific categories
+
+    Inputs: mydb
+
+    Outputs: mydb plus column with new categories
+
+    Date        Programmer      Description of Changes
+    ------------------------------------------------------------
+    8/28/2023   A.A. Kepley     Original Code
+    '''
+
+    category_dict =  {'Cosmology and the high redshift Universe': ["Lyman Alpha Emitters/Blobs (LAE/LAB)",
+                                                                   "Lyman Break Galaxies (LBG)","Starburst galaxies",
+                                                                   "Sub-mm Galaxies (SMG)","High-z Active Galactic Nuclei (AGN)",
+                                                                   "Gravitational lenses",
+                                                                   "Damped Lyman Alpha (DLA) systems",
+                                                                   "Cosmic Microwave Background (CMB)/Sunyaev-Zel'dovich Effect (SZE)",
+                                                                   "Galaxy structure & evolution","Gamma Ray Bursts (GRB)",
+                                                                   "Galaxy Clusters"],
+                      'Galaxies and galactic nuclei': ["Starbursts", "star formation","Active Galactic Nuclei (AGN)/Quasars (QSO)",
+                                                       "Spiral galaxies","Merging and interacting galaxies","Surveys of galaxies",
+                                                       "Outflows","jets", "feedback","Early-type galaxies",
+                                                       "Galaxy groups and clusters","Galaxy chemistry","Galactic centres/nuclei",
+                                                       "Dwarf/metal-poor galaxies",
+                                                       "Luminous and Ultra-Luminous Infra-Red Galaxies (LIRG & ULIRG)",
+                                                       "Giant Molecular Clouds (GMC) properties"],
+                      'ISM, star formation and astrochemistry': ['Outflows', 'jets and ionized winds','High-mass star formation',
+                                                                 'Intermediate-mass star formation','Low-mass star formation',
+                                                                 'Pre-stellar cores', 'Infra-Red Dark Clouds (IRDC)',
+                                                                 'Astrochemistry','Inter-Stellar Medium (ISM)/Molecular clouds',
+                                                                 'Photon-Dominated Regions (PDR)/X-Ray Dominated Regions (XDR)',
+                                                                 'HII regions',
+                                                                 'Magellanic Clouds'],
+                      'Circumstellar disks, exoplanets and the solar system': ['Debris disks','Disks around low-mass stars',
+                                                                               'Disks around high-mass stars','Exo-planets',
+                                                                               'Solar system: Comets',
+                                                                               'Solar system: Planetary atmospheres',
+                                                                               'Solar system: Planetary surfaces',
+                                                                               'Solar system: Trans-Neptunian Objects (TNOs)',
+                                                                               'Solar system: Asteroids'],
+                      'Stellar evolution and the Sun': ['The Sun','Main sequence stars','Asymptotic Giant Branch (AGB) stars',
+                                                        'Post-AGB stars','Hypergiants','Evolved stars - Shaping/physical structure',
+                                                        'Evolved stars - Chemistry','Cataclysmic stars',
+                                                        'Luminous Blue Variables (LBV)','White dwarfs',
+                                                        'Brown dwarfs','Supernovae (SN) ejecta',
+                                                        'Pulsars and neutron stars','Black holes','Transients']}
+
+
+    newcat_array = []
+    
+    for row in mydb:
+        newcat = []
+        keylist = row['science_keyword'].split(', ')
+        
+        for mykey in keylist:
+            for mycat in category_dict.keys():
+                if mykey in category_dict[mycat]:
+                    newcat.append(mycat)
+                    
+        if len(np.unique(newcat)) > 1:
+
+            if row['scientific_category'] == 'Active galaxies':
+                newcat = ['Galaxies and galactic nuclei']
+            elif row['scientific_category'] == 'ISM and star formation':
+                newcat  = ['ISM, star formation and astrochemistry']
+            else:
+                print('Multiple categories found: '+ row['mous'])
+                print(row['scientific_category'])
+                print(np.unique(newcat))
+                print('--')
+                
+
+                    
+        if len(newcat) == 0:
+            print('No new category found: '+row['mous'])
+            print(keylist)
+            print(row['scientific_category'])
+            print(np.unique(newcat))
+            print('--')
+
+            
+
+        newcat_array.append(np.unique(newcat)[0])
+
+    if 'scientific_category_proposal' in mydb.columns:
+        mydb.replace_column('scientific_category_proposal',newcat_array)
+    else:
+        mydb.add_column(newcat_array,6,'scientific_category_proposal')
+        
+                           
