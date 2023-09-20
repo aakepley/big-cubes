@@ -1,5 +1,5 @@
 
-from astropy.table import Table, QTable, join, unique
+from astropy.table import Table, QTable, join, unique, vstack
 import numpy as np
 import astropy.units as u
 from astropy import constants as const
@@ -23,7 +23,7 @@ def calc_talon_specwidth(specwidth):
     talon_chan = 13.5 #kHz
 
     if specwidth > talon_chan:
-        chan_avg = float(math.floor(specwidth / talon_chan))
+     chan_avg = float(math.floor(specwidth / talon_chan))
         if chan_avg < 1.0:
             chan_avg = 1.0
         specwidth_talon = talon_chan * chan_avg
@@ -1536,6 +1536,7 @@ def fix_scientific_categories(mydb):
                                                                    "Galaxy structure & evolution","Gamma Ray Bursts (GRB)",
                                                                    "Galaxy Clusters"],
                       'Galaxies and galactic nuclei': ["Starbursts", "star formation","Active Galactic Nuclei (AGN)/Quasars (QSO)",
+
                                                        "Spiral galaxies","Merging and interacting galaxies","Surveys of galaxies",
                                                        "Outflows","jets", "feedback","Early-type galaxies",
                                                        "Galaxy groups and clusters","Galaxy chemistry","Galactic centres/nuclei",
@@ -1606,3 +1607,237 @@ def fix_scientific_categories(mydb):
         mydb.add_column(newcat_array,6,'scientific_category_proposal')
         
                            
+
+def remove_projects(mydb, array='12m', time_frac=0.05):
+    '''
+    Purpose: remove some projects from the total and return database with projects removed
+
+    Input: mydb
+
+    Output: new data base with projects removed.
+
+    Method: Following method outlined by IST/John Carpenter.
+    I did parameterize so can make it easy.
+
+    TODOS:
+    -- How to implement varying band probability?
+    
+    Date        Programmer      Description of Changes
+    -----------------------------------------------------
+    9/19/2023   A.A. Kepley     Original Code
+    
+    '''
+
+    # copy old data base to new data base
+    newdb = mydb.copy()
+
+    # calculate number of rows in original database
+    orig_nrows = len(mydb)
+    
+    # figure out how much time I should remove.
+    ## TODO: check to make sure that this is limited to array
+    replace_time = np.nansum(mydb['time_tot'][mydb['array'] == array]) * time_frac
+    
+    # should probably do something smarter with band selection here
+    idx = (mydb['array'] == array) & ((mydb['band'] == 3.0) | (mydb['band'] == 6.0) | (mydb['band'] == 7.0))
+    nrows = len(mydb[idx])
+
+    # initialize random number generators
+    rng = np.random.default_rng()
+    
+    ## set up counters
+    time_accum = 0.0 * u.s
+    myrows = []
+
+    # go through and remove projects
+    while time_accum <= replace_time:
+
+        # high = 1+the max value generated so nrows is right here.
+        myrow_tmp = rng.integers(low=0,high=nrows,size=1)
+
+        # if we haven't already picked the row
+        if myrow_tmp not in myrows:
+
+            #add the row to the list of rows removed
+            myrows.extend(myrow_tmp)
+            
+            # add to the accumulate time
+            time_accum = time_accum + mydb[idx][myrow_tmp]['time_tot'][0]
+            
+            # match the mous for the given row to the main data base
+            idx_match = newdb['mous'] == mydb[idx][myrow_tmp]['mous'][0]
+            
+            # remove the row from the original data base.
+            # A bit of hack that relies on np interpreting a boolean True as 1
+            newdb.remove_rows(np.argmax(idx_match))
+
+    # get the number of new rows in the data base
+    new_nrows = len(newdb)
+
+    # difference in number of rows in database.
+    diff = orig_nrows - new_nrows
+
+    # print out some diagnostics
+    print("Total number of MOUSes:", orig_nrows)
+    print("Total number of MOUSes meeting the criteria:", nrows)
+    print("Number of MOUSes removed:", diff)
+    print("New number of MOUSes:", new_nrows)
+
+    return newdb ## do I want to return number of hours replaced here? Might help with the next step.
+
+
+def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr):
+    '''
+    Purpose: Add band1 and band2 information into data base by
+    scaling from band 3.
+
+    Input: database with replacement projects removed
+
+    Output: updated database with estimates for new bands. Do I want to output everything
+    or just the new projects?
+
+    Method:
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------------
+    9/20/2023  A.A. Kepley     Original Code
+    '''
+
+    # fiducial band 1 and 2 frequencies
+    band1_freq = 39.0 * u.GHz
+    band2_freq = 75.0 * u.GHz
+
+    # copy old data base to new database
+    newdb = mydb.copy()
+
+    # calculate number of rows in original data base.
+    orig_nrows = len(mydb)
+
+    # select relevant portions of the data base
+    idx = (mydb['array'] == array) & (mydb['band'] == 3.0)
+    nrows = len(mydb[idx])
+
+    # initialize random number generator
+    rng = np.random.default_rng()
+
+    ## set up counters
+    time_accum = 0.0 * u.s
+    myrows = []
+    db_update = None
+    
+    ## need to convert total_time to seconds
+    while time_accum <= total_time.to('s'):
+        myrow_tmp = rng.integers(low=0,high=nrows,size=1)
+
+        if myrow_tmp not in myrows:
+            myrows.extend(myrow_tmp)
+            time_accum = time_accum + mydb[idx][myrow_tmp]['time_tot'][0]
+
+            ## create new info with band 1 or 2 info
+            old_info = mydb[idx][myrow_tmp]
+            new_info = old_info
+            
+            new_info['band'] = band
+            new_info['cycle'] = 'estimate'
+
+
+            if band == 1.0:
+                new_info['wsu_freq'] = band1_freq
+                new_info['wsu_bandwidth_early'] = 16.0*u.GHz
+                new_info['wsu_bandwidth_later_2x'] = 16.0*u.GHz
+                new_info['wsu_bandwidth_later_4x'] = 16.0*u.GHz ## Can't be upgraded beyond 16 GHz.
+                
+            if band == 2.0:
+                new_info['wsu_freq'] = band2_freq
+                new_info['wsu_bandwidth_early'] = 16.0*u.GHz
+                new_info['wsu_bandwidth_later_2x'] = 16.0*u.GHz
+                new_info['wsu_bandwidth_later_4x'] = 32.0*u.GHz
+
+            scale_factor = old_info['wsu_freq'] / new_info['wsu_freq']
+            
+
+            new_info['s_fov'] = old_info['s_fov'] * scale_factor
+            new_info['s_resolution'] = old_info['s_resolution'] * scale_factor
+            new_info['pb'] = old_info['pb'] * scale_factor
+            new_info['cell'] = old_info['cell'] * scale_factor
+
+            if db_update is None:                
+                db_update = QTable(new_info)
+            else:
+                db_update = vstack([db_update,new_info])
+
+                
+    db_update['wsu_nspw_early'] = round(db_update['wsu_bandwidth_early']/db_update['wsu_bandwidth_spw'])
+    db_update['wsu_nspw_later_2x'] = round(db_update['wsu_bandwidth_later_2x']/db_update['wsu_bandwidth_spw'])
+    db_update['wsu_nspw_later_4x'] = round(db_update['wsu_bandwidth_later_4x']/db_update['wsu_bandwidth_spw'])
+
+
+    # calculating new specwidth, velres, and chanavg. need to do for finest, stepped, stepped2
+
+    vel_res_tmp = np.round(db_update['wsu_velres_stepped2'],1) ## need the round to get the steps
+    specwidth_tmp = (vel_res_tmp / const.c.to('km/s').value) * db_update['wsu_freq'].to('Hz') * 1e9)/1e3 #kHz
+
+    ## HERE
+    #specwidth_wsu, chanavg_wsu = calc_talon_specwidth(specwidth_tmp) ## hmm... this looks like it's a single value calc. I probably
+    #  should make an array version.
+    # wsu_velres = (specwidth_wsu * 1e3) /(db_update['wsu_freq'].value*1e9)) * const.c.to('km/s').value
+            
+            ## looking a values calculated per source in original data base.
+            #names=('mous','proposal_id','schedblock_name','array', -- NO CHANGE NEEDED
+            #                    'science_keyword','scientific_category',-- NO CHANGE NEEDED
+            #                    'nant_typical','nant_array','nant_all', -- NO CHANGE NEEDED
+            #                    'band', --- CHANGED
+            #                     'ntarget','target_name', # NO CHANGE NEEDED
+            #                    's_fov','s_resolution', ## CHANGED -- SCALED
+            #                      'mosaic', -- NO CHANGE NEEDED
+            #                    'imsize', -- NO CHANGE NEEDED
+            #                     'pb','cell', ## CHANGED -- SCALED
+
+            
+            #                    'blc_npol','blc_nspw', ## MASK OUT
+            #                    'blc_specwidth','blc_freq', ## MASK OUT
+            #                    'blc_velres', ## KEEP?
+            #                    'blc_nchan_agg','blc_nchan_max','blc_bandwidth_max','blc_bandwidth_agg', #MASK OUT
+
+            #                    'wsu_freq', ## CHANGED TO NEW VALUE
+            #                     'wsu_npol', ## KEEP OLD VALUE
+            #                    'wsu_bandwidth_early','wsu_bandwidth_later_2x','wsu_bandwidth_later_4x', ## CHANGED TO CORRECT VALUE
+            #                    'wsu_bandwidth_spw', ## NO CHANGE
+
+            #                     'wsu_nspw_early','wsu_nspw_later_2x', 'wsu_nspw_later_4x', ## NEEDS TO BE RELCACLUATE
+
+            #                    
+            #                    'wsu_specwidth_finest','wsu_chanavg_finest', 'wsu_velres_finest', ## NEEDS TO BE RECALCULATED. COULD POTENTIALLY SKIP
+            #                    'wsu_specwidth_stepped','wsu_chanavg_stepped', 'wsu_velres_stepped', ## NEEDS TO BE RECALCULATED. COULD POTENTIALLY SKIP
+            #                    'wsu_specwidth_stepped2','wsu_chanavg_stepped2','wsu_velres_stepped2', ## NEEDS TO BE RECALCULATED.                             
+
+            #                    'wsu_tint')) -- KEEP THE SAME
+
+            ## NEED TO CALCUALTE:
+            ## wsu_nchan_spw_finest
+            ## wsu_nchan_spw_stepped
+            ## wsu_nchan_spw_stepped2
+            
+            ## then add data rates based on the above.
+            
+
+                
+                
+    ipdb.set_trace()
+
+
+    # do I want to do recalculation inside or outside the loop?
+    ## add rows to data base.
+
+
+
+
+
+
+
+                
+
+
+
+    
+
