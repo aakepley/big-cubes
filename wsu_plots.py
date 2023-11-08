@@ -10,11 +10,19 @@ import math
 from astropy.table import Table, QTable, join
 import ipdb
 
+
 # setup generic colors 
-mycolors = {'blc': 'darkslateblue',
-            'early': 'darkorange',
-            'later_2x': 'seagreen',
-            'later_4x':'firebrick' }
+# original colors
+#mycolors = {'blc': 'darkslateblue',
+#            'early': 'darkorange',
+#            'later_2x': 'seagreen',
+#            'later_4x':'firebrick' }
+
+# matching peak data rate memo
+mycolors = {'blc': 'seagreen',
+            'early': 'darkslateblue',
+            'later_2x': 'firebrick',
+            'later_4x':'darkorange' }
 
 # TODO: Double-check these numbers
 # setup fiducial values.
@@ -54,6 +62,8 @@ band2specscan_160MBs = {'nchan': 49600.0,
 
 
 band2specscan['frac_bw'] = band2specscan['bandwidth']/band2specscan['freq']
+
+
 
 ## imsize vs. nchan overview plots
 ## ------------------------------
@@ -1117,7 +1127,8 @@ def plot_cubesize_result_hist(mydb,
 def plot_cubesize_comparison(mydb,
                              plot_title='Cube Size',
                              mitigated_wsu=False,
-                             figname=None):
+                             figname=None,
+                             band1_band2_estimate=None):
     '''
     Purpose: compare the cubesize distribution
     between WSU and BLC
@@ -1170,6 +1181,20 @@ def plot_cubesize_comparison(mydb,
              linestyle='-',
              linewidth=2,
              label="WSU (unmitigated)")
+
+    if band1_band2_estimate:
+        plt.fill_between(band1_band2_estimate['wsu_cubesize_stepped2']['bins'][1:],
+                         band1_band2_estimate['wsu_cubesize_stepped2']['min'],
+                         band1_band2_estimate['wsu_cubesize_stepped2']['max'],
+                         step='pre',
+                         color=mycolors['early'],
+                         alpha=0.4)
+        plt.stairs(band1_band2_estimate['wsu_cubesize_stepped2']['median'],
+                   band1_band2_estimate['wsu_cubesize_stepped2']['bins'],
+                   label='w/ Bands 1 & 2',
+                   color=mycolors['early'],
+                   linewidth=2,
+                   linestyle=':')
 
     plt.axvline(np.log10(maxcubesize), color='black', linestyle=':', linewidth=2)
     plt.axvline(np.log10(cubesizelimit), color='black', linestyle='-', linewidth=2)
@@ -1422,22 +1447,22 @@ def plot_spw_hist_all(mydb,
               weights=mydb['weights_all'],
               label='early WSU')
 
-    ax1. hist(mydb['wsu_nspw_later_2x'],
-              bins=mybins,
-              color=mycolors['later_2x'],
-              align='left',
-              alpha=0.2,
-              weights=mydb['weights_all']) 
+    #ax1. hist(mydb['wsu_nspw_later_2x'],
+    #          bins=mybins,
+    #          color=mycolors['later_2x'],
+    #          align='left',
+    #          alpha=0.2,
+    #          weights=mydb['weights_all']) 
     
-    ax1. hist(mydb['wsu_nspw_later_2x'],
-              bins=mybins,
-              color=mycolors['later_2x'],
-              align='left',
-              histtype='step',
-              linewidth=2,
-              edgecolor=mycolors['later_2x'],
-              weights=mydb['weights_all'],
-              label='Later WSU (2x)')
+    #ax1. hist(mydb['wsu_nspw_later_2x'],
+    #          bins=mybins,
+    #          color=mycolors['later_2x'],
+    #          align='left',
+    #          histtype='step',
+    #          linewidth=2,
+    #          edgecolor=mycolors['later_2x'],
+    #          weights=mydb['weights_all'],
+    #          label='Later WSU (2x)')
 
     ax1. hist(mydb['wsu_nspw_later_4x'],
               bins=mybins,
@@ -1454,7 +1479,7 @@ def plot_spw_hist_all(mydb,
               linewidth=2,
               edgecolor=mycolors['later_4x'],
               weights=mydb['weights_all'],
-              label='Later WSU (4x)')
+              label='Later WSU')
 
     
     ax1.set_ylim((0,1.1))
@@ -1476,6 +1501,7 @@ def plot_spw_hist_all(mydb,
 def plot_productsize_comparison(mydb,
                                 plot_title='Product Size',
                                 mitigated_wsu=False,
+                                band1_band2_estimate=None,
                                 figname=None):
     '''
     Purpose: compare the productsize distribution
@@ -1532,14 +1558,30 @@ def plot_productsize_comparison(mydb,
              linewidth=2,
              label="Early WSU")
 
-    plt.hist(np.log10(mydb['wsu_productsize_later_2x_stepped2'].to('TB').value), cumulative=-1, histtype='step',
-             bins=mybins,
-             log=True,
-             density=True,
-             weights=mydb['weights_all'],
-             color=mycolors['later_2x'],
-             linewidth=2,
-             label="Later WSU (2x)")
+
+    if band1_band2_estimate:
+        ## the log10 was already done in the binning.
+        plt.fill_between(band1_band2_estimate['wsu_productsize_early_stepped2']['bins'][1:],
+                         band1_band2_estimate['wsu_productsize_early_stepped2']['min'],
+                         y2=band1_band2_estimate['wsu_productsize_early_stepped2']['max'],
+                         step='pre',
+                         color=mycolors['early'],                         
+                         alpha=0.4)
+        plt.stairs(band1_band2_estimate['wsu_productsize_early_stepped2']['median'],
+                   band1_band2_estimate['wsu_productsize_early_stepped2']['bins'],
+                   label='w/ Bands 1 & 2',
+                   color=mycolors['early'],
+                   linewidth=2,                   
+                   linestyle=':') 
+    
+    #plt.hist(np.log10(mydb['wsu_productsize_later_2x_stepped2'].to('TB').value), cumulative=-1, histtype='step',
+    #         bins=mybins,
+    #         log=True,
+    #         density=True,
+    #         weights=mydb['weights_all'],
+    #         color=mycolors['later_2x'],
+    #         linewidth=2,
+    #         label="Later WSU (2x)")
 
     plt.hist(np.log10(mydb['wsu_productsize_later_4x_stepped2'].to('TB').value), cumulative=-1, histtype='step',
              bins=mybins,
@@ -1548,7 +1590,23 @@ def plot_productsize_comparison(mydb,
              weights=mydb['weights_all'],
              color=mycolors['later_4x'],
              linewidth=2,
-             label="Later WSU (4x)")
+             label="Later WSU")
+
+
+    if band1_band2_estimate:
+        plt.fill_between(band1_band2_estimate['wsu_productsize_later_4x_stepped2']['bins'][1:],
+                         band1_band2_estimate['wsu_productsize_later_4x_stepped2']['min'],
+                         y2=band1_band2_estimate['wsu_productsize_later_4x_stepped2']['max'],
+                         step='pre',
+                         color=mycolors['later_4x'],                         
+                         alpha=0.4)
+        plt.stairs(band1_band2_estimate['wsu_productsize_later_4x_stepped2']['median'],
+                   band1_band2_estimate['wsu_productsize_later_4x_stepped2']['bins'],
+                   label='w/ Bands 1 & 2',
+                   color=mycolors['later_4x'],
+                   linewidth=2,                   
+                   linestyle=':') 
+    
 
     plt.axvline(np.log10(maxproductsize), color='black', linestyle=':')
     plt.text(np.log10(maxproductsize)+0.1,0.65,'Current product size limit\n(500GB)',horizontalalignment='left')
@@ -1583,7 +1641,9 @@ def plot_productsize_comparison(mydb,
 
 def plot_datavol_comparison(mydb,
                             log=True,
+                            datatype='total',
                             plot_title="Visibility Data Volume",
+                            band1_band2_estimate=None,
                             figname=None):
     '''
     Purpose: compare the nvis distribution
@@ -1594,40 +1654,71 @@ def plot_datavol_comparison(mydb,
     1/31/2023   A.A. Kepley     Original Code
     '''
 
-    mybins = 500
+    mybins = 500    
 
-    plt.hist(np.log10(mydb['blc_datavol_typical_total'].to('TB').value),cumulative=-1,histtype='step',
+    plt.hist(np.log10(mydb['blc_datavol_typical_'+datatype].to('TB').value),cumulative=-1,histtype='step',
              bins=mybins,
              log=True,
              density=True,
+             weights=mydb['weights_all'],
              color=mycolors['blc'],
              linewidth=2,
              label="BLC/ACA")
     
-    plt.hist(np.log10(mydb['wsu_datavol_early_stepped2_typical_total'].to('TB').value), cumulative=-1,histtype='step',
+    plt.hist(np.log10(mydb['wsu_datavol_early_stepped2_typical_'+datatype].to('TB').value), cumulative=-1,histtype='step',
              bins=mybins,
              log=True,
              density=True,
+             weights=mydb['weights_all'],
              color=mycolors['early'],
              linewidth=2,
              label="early WSU")
 
-    plt.hist(np.log10(mydb['wsu_datavol_later_2x_stepped2_typical_total'].to('TB').value), cumulative=-1,histtype='step',
-             bins=mybins,
-             log=True,
-             density=True,
-             color=mycolors['later_2x'],
-             linewidth=2,
-             label="later WSU (2x)")
+    if band1_band2_estimate:
+        ## the -3 converts between GB and TB in log10 space
+        plt.fill_between(band1_band2_estimate['wsu_datavol_early_stepped2_typical_'+datatype]['bins'][1:],
+                         band1_band2_estimate['wsu_datavol_early_stepped2_typical_'+datatype]['min'],
+                         band1_band2_estimate['wsu_datavol_early_stepped2_typical_'+datatype]['max'],
+                         step='pre',
+                         color=mycolors['early'],
+                         alpha=0.4)
+        plt.stairs(band1_band2_estimate['wsu_datavol_early_stepped2_typical_'+datatype]['median'],
+                   band1_band2_estimate['wsu_datavol_early_stepped2_typical_'+datatype]['bins'] ,
+                   label='w/ Bands 1 & 2',
+                   color=mycolors['early'],
+                   linewidth=2,
+                   linestyle=':')
+    
+    #plt.hist(np.log10(mydb['wsu_datavol_later_2x_stepped2_typical_total'].to('TB').value), cumulative=-1,histtype='step',
+    #         bins=mybins,
+    #         log=True,
+    #         density=True,
+    #         color=mycolors['later_2x'],
+    #         linewidth=2,
+    #         label="later WSU (2x)")
 
-    plt.hist(np.log10(mydb['wsu_datavol_later_4x_stepped2_typical_total'].to('TB').value), cumulative=-1,histtype='step',
+    plt.hist(np.log10(mydb['wsu_datavol_later_4x_stepped2_typical_'+datatype].to('TB').value), cumulative=-1,histtype='step',
              bins=mybins,
              log=True,
              density=True,
+             weights=mydb['weights_all'],
              color=mycolors['later_4x'],
              linewidth=2,
-             label="later WSU (4x)")
+             label="later WSU")
         
+    if band1_band2_estimate:
+        plt.fill_between(band1_band2_estimate['wsu_datavol_later_4x_stepped2_typical_'+datatype]['bins'][1:],
+                         band1_band2_estimate['wsu_datavol_later_4x_stepped2_typical_'+datatype]['min'],
+                         band1_band2_estimate['wsu_datavol_later_4x_stepped2_typical_'+datatype]['max'],
+                         step='pre',
+                         color=mycolors['later_4x'],
+                         alpha=0.4)
+        plt.stairs(band1_band2_estimate['wsu_datavol_later_4x_stepped2_typical_'+datatype]['median'],
+                   band1_band2_estimate['wsu_datavol_later_4x_stepped2_typical_'+datatype]['bins'],
+                   label='w/ Bands 1 & 2',
+                   color=mycolors['later_4x'],
+                   linewidth=2,
+                   linestyle=':')
 
     plt.axhline(0.1,color='gray',linestyle=':')
     plt.text(-3,0.1,'10% larger')
@@ -1738,7 +1829,9 @@ def plot_datavol_result_hist(mydb,
 def plot_datarate_comparison(mydb,
                              plot_title="Data Rate",
                              figname=None,
-                             add_band2_specscan=False):
+                             add_band2_specscan=False,
+                             band1_band2_estimate=None,
+                             add_tech_limits=False):
     '''
     Purpose: compare the data rate distribution between WSU and BLC.
 
@@ -1767,15 +1860,43 @@ def plot_datarate_comparison(mydb,
              linewidth=2,
              label="early WSU")
 
-    plt.hist(np.log10(mydb['wsu_datarate_later_2x_stepped2_typical'].value), cumulative=-1,histtype='step',
-             bins=mybins,
-             log=True,
-             density=True,
-             color=mycolors['later_2x'],
-             weights=mydb['weights_all'],
-             linewidth=2,
-             label="later WSU (2x)")
+    if band1_band2_estimate:
+        plt.fill_between(band1_band2_estimate['wsu_datarate_early_stepped2_typical']['bins'][1:],
+                         band1_band2_estimate['wsu_datarate_early_stepped2_typical']['min'],
+                         y2=band1_band2_estimate['wsu_datarate_early_stepped2_typical']['max'],
+                         step='pre',
+                         color=mycolors['early'],                         
+                         alpha=0.4)
+        plt.stairs(band1_band2_estimate['wsu_datarate_early_stepped2_typical']['median'],
+                   band1_band2_estimate['wsu_datarate_early_stepped2_typical']['bins'],
+                   label='w/ Bands 1 & 2',
+                   color=mycolors['early'],
+                   linewidth=2,                   
+                   linestyle=':') 
+    
+    #plt.hist(np.log10(mydb['wsu_datarate_later_2x_stepped2_typical'].value), cumulative=-1,histtype='step',
+    #         bins=mybins,
+    #         log=True,
+    #         density=True,
+    #         color=mycolors['later_2x'],
+    #         weights=mydb['weights_all'],
+    #         linewidth=2,
+    #         label="later WSU (2x)")
 
+    #if band1_band2_estimate:
+    #    plt.fill_between(band1_band2_estimate['wsu_datarate_later_2x_stepped2_typical']['bins'][1:],
+    #                     band1_band2_estimate['wsu_datarate_later_2x_stepped2_typical']['min'],
+    #                     y2=band1_band2_estimate['wsu_datarate_later_2x_stepped2_typical']['max'],
+    #                     step='pre',
+    #                     color=mycolors['later_2x'],                         
+    #                     alpha=0.4)
+    #    plt.stairs(band1_band2_estimate['wsu_datarate_later_2x_stepped2_typical']['median'],
+    #               band1_band2_estimate['wsu_datarate_later_2x_stepped2_typical']['bins'],
+    #               label='w/ Bands 1 & 2',
+    #               color=mycolors['later_2x'],
+    #               linewidth=2,                   
+    #               linestyle=':') 
+    
     plt.hist(np.log10(mydb['wsu_datarate_later_4x_stepped2_typical'].value), cumulative=-1,histtype='step',
              bins=mybins,
              log=True,
@@ -1783,7 +1904,23 @@ def plot_datarate_comparison(mydb,
              color=mycolors['later_4x'],
              weights=mydb['weights_all'],
              linewidth=2,
-             label="later WSU (4x)")
+             label="later WSU")
+
+    
+    if band1_band2_estimate:
+        plt.fill_between(band1_band2_estimate['wsu_datarate_later_4x_stepped2_typical']['bins'][1:],
+                         band1_band2_estimate['wsu_datarate_later_4x_stepped2_typical']['min'],
+                         y2=band1_band2_estimate['wsu_datarate_later_4x_stepped2_typical']['max'],
+                         step='pre',
+                         color=mycolors['later_4x'],                         
+                         alpha=0.4)
+        plt.stairs(band1_band2_estimate['wsu_datarate_later_4x_stepped2_typical']['median'],
+                   band1_band2_estimate['wsu_datarate_later_4x_stepped2_typical']['bins'],
+                   label='w/ Bands 1 & 2',
+                   color=mycolors['later_4x'],
+                   linewidth=2,                   
+                   linestyle=':') 
+    
 
     plt.axhline(0.1,color='gray',linestyle=':')
     plt.text(-3.5,0.1,'10% larger')
@@ -1798,7 +1935,7 @@ def plot_datarate_comparison(mydb,
     plt.text(np.log10(0.070)+0.05,0.7,'Current\nlimit' ,color='gray')
     
     plt.axvline(np.log10(0.5),color='gray',linestyle='--', linewidth=2)
-    plt.text(np.log10(0.5)+0.05, 0.2, '500\nMB/s\nlimit',color='gray')
+    plt.text(np.log10(0.5)+0.05, 0.2, '500\nMB/s',color='gray')
 
     ## Band 2 spectral scan
     if add_band2_specscan:
@@ -1807,8 +1944,18 @@ def plot_datarate_comparison(mydb,
 
         #plt.axvline(np.log10(band2specscan_later_4x['datarate_typical']),color='gray',linestyle='-',linewidth=2)
         #plt.text(np.log10(band2specscan_later_4x['datarate_typical']),0.06,'Max',color='gray')
+
+    ## TODO: check how this actually looks on the plot
+    if add_tech_limits:
+
+        plt.axvline(np.log10(3.5),color='gray', linestyle='-.', linewidth=2)
+        plt.text(np.log10(3.5)-0.05, 0.6, '3.5\nGB/s',color='gray',horizontalalignment='right')
+
+        plt.axvline(np.log10(7.0),color='gray', linestyle='-', linewidth=2)
+        plt.text(np.log10(7.0)+0.05, 0.15, '7.0\nGB/s',color='gray')
+
         
-        
+            
     plt.grid(which='both',axis='both',linestyle=':')
     
     plt.xlabel('Data rate (GB/s)')
@@ -1839,7 +1986,8 @@ def plot_datarate_result_hist(mydb,
                               limit = None, # data rate limit in GB
                               limit_label = 'Data Rate Limit', # data rate limit
                               add_band2_specscan=False,
-                              pltname=None):
+                              pltname=None,
+                              add_tech_limits=False):
     '''
     Purpose: create plots and calculate result table 
 
@@ -1894,7 +2042,8 @@ def plot_datarate_result_hist(mydb,
                       weights=mydb['weights_all'])
 
     ax1.set_ylim((0,1))
-
+        
+    
     if add_wavg:
 
         wavg = np.average(mydb[data_val].value,weights=mydb['weights_all'])
@@ -1912,6 +2061,12 @@ def plot_datarate_result_hist(mydb,
                     color='gray',linestyle='-',linewidth=2,
                     label='Band 2 0.1 km/s (2x BW)')
 
+
+    if add_tech_limits:
+        ax1.axvline(3.5,color='gray',linestyle=':',linewidth=2,
+                    label='3.5 GB/s')
+        ax1.axvline(7.0,color='gray',linestyle='-.',linewidth=2,
+                   label='7.0 GB/s')
 
     ax1.set_xlabel('Data Rate (GB/s)')
     ax1.set_ylabel('Fraction of time')
@@ -2010,9 +2165,11 @@ def plot_soc_result_hist(mydb,
     
 
 def plot_soc_result_cumulative(mydb,
+                               label='allgrid',
                                plot_title="System Performance",
                                add_wavg=False,
                                add_band2_specscan = None,
+                               band1_band2_estimate=None,
                                pltname=None):
 
     '''
@@ -2033,73 +2190,103 @@ def plot_soc_result_cumulative(mydb,
 
     mybins = 500
 
-    plt.hist(np.log10(mydb['blc_sysperf_typical']), cumulative=-1, histtype='step',
+    plt.hist(np.log10(mydb['blc_sysperf_typical'+'_'+label]), cumulative=-1, histtype='step',
              bins=mybins,
              log=True,
              density=True,
+             weights=mydb['weights_all'],
              color=mycolors['blc'],
              linewidth=2,
              label='BLC (unmitigated)')
 
     if add_wavg:
-        wavg = np.average(mydb['blc_sysperf_typical'],weights=mydb['weights_all'])
+        wavg = np.average(mydb['blc_sysperf_typical'+'_'+label],weights=mydb['weights_all'])
         plt.axvline(np.log10(wavg), color=mycolors['blc'], linestyle=':')
         #plt.text(np.log10(wavg)+0.05,0.012,'{:5.2e} \nPFLOP/s'.format(wavg),
         #         color='#1f77b4')
 
 
-    idx = mydb['wsu_datarate_early_stepped2_typical'] < 0.5 * u.GB /u.s
-    plt.hist(np.log10(mydb['wsu_sysperf_early_stepped2_typical'][idx]), cumulative=-1, histtype='step',
-             bins=mybins,
-             log=True,
-             density=True,
-             color=mycolors['early'],
-             linestyle=':',linewidth=2,
-             label='early WSU \n(<500 MB/s)',)
+    #idx = mydb['wsu_datarate_early_stepped2_typical'] < 0.5 * u.GB /u.s
+    #plt.hist(np.log10(mydb['wsu_sysperf_early_stepped2_typical'][idx]), cumulative=-1, histtype='step',
+    #         bins=mybins,
+    #         log=True,
+    #         density=True,
+    #         color=mycolors['early'],
+    #         linestyle=':',linewidth=2,
+    #         label='early WSU \n(<500 MB/s)',)
      
         
-    plt.hist(np.log10(mydb['wsu_sysperf_early_stepped2_typical']), cumulative=-1, histtype='step',
+    plt.hist(np.log10(mydb['wsu_sysperf_early_stepped2_typical'+'_'+label]), cumulative=-1, histtype='step',
              bins=mybins,
              log=True,
              density=True,
+             weights=mydb['weights_all'],
              color=mycolors['early'],
              linewidth=2,
              label='early WSU')
 
+    if band1_band2_estimate:
+        plt.fill_between(band1_band2_estimate['wsu_sysperf_early_stepped2_typical'+'_'+label]['bins'][1:],
+                         band1_band2_estimate['wsu_sysperf_early_stepped2_typical'+'_'+label]['min'],
+                         y2=band1_band2_estimate['wsu_sysperf_early_stepped2_typical'+'_'+label]['max'],
+                         step='pre',
+                         color=mycolors['early'],
+                         alpha=0.4)
+        plt.stairs(band1_band2_estimate['wsu_sysperf_early_stepped2_typical'+'_'+label]['median'],
+                   band1_band2_estimate['wsu_sysperf_early_stepped2_typical'+'_'+label]['bins'],
+                   label='w/ Bands 1 & 2',
+                   color=mycolors['early'],
+                   linewidth=2,
+                   linestyle=':')
+                                                                                            
     if add_wavg:
-        wavg = np.average(mydb['wsu_sysperf_early_stepped2_typical'],weights=mydb['weights_all'])
+        wavg = np.average(mydb['wsu_sysperf_early_stepped2_typical'+'_'+label],weights=mydb['weights_all'])
         plt.axvline(np.log10(wavg), color=mycolors['early'], linestyle=':')
         #plt.text(np.log10(wavg)+0.05,0.0055,'{:5.2e} \nPFLOP/s'.format(wavg),
         #         color='#ff7f0e')
 
     
-    plt.hist(np.log10(mydb['wsu_sysperf_later_2x_stepped2_typical']), cumulative=-1, histtype='step',
-             bins=mybins,
-             log=True,
-             density=True,
-             color=mycolors['later_2x'],
-             linewidth=2,
-             label='later WSU (2x)')
+    #plt.hist(np.log10(mydb['wsu_sysperf_later_2x_stepped2_typical']), cumulative=-1, histtype='step',
+    #         bins=mybins,
+    #         log=True,
+    #         density=True,
+    #         color=mycolors['later_2x'],
+    #         linewidth=2,
+    #         label='later WSU (2x)')
 
     
-    if add_wavg:
-        wavg = np.average(mydb['wsu_sysperf_later_2x_stepped2_typical'],weights=mydb['weights_all'])
-        plt.axvline(np.log10(wavg), color=mycolors['later_2x'], linestyle=':')
-        #plt.text(np.log10(wavg)+0.05,0.0026,'{:5.2e} \nPFLOP/s'.format(wavg),
-        #         color='#2ca02c')
+    #if add_wavg:
+    #    wavg = np.average(mydb['wsu_sysperf_later_2x_stepped2_typical'+'_'+label],weights=mydb['weights_all'])
+    #    plt.axvline(np.log10(wavg), color=mycolors['later_2x'], linestyle=':')
+    #    #plt.text(np.log10(wavg)+0.05,0.0026,'{:5.2e} \nPFLOP/s'.format(wavg),
+    #    #         color='#2ca02c')
                 
 
-    plt.hist(np.log10(mydb['wsu_sysperf_later_4x_stepped2_typical']), cumulative=-1, histtype='step',
+    plt.hist(np.log10(mydb['wsu_sysperf_later_4x_stepped2_typical'+'_'+label]), cumulative=-1, histtype='step',
              bins=mybins,
              log=True,
              density=True,
+             weights=mydb['weights_all'],
              color = mycolors['later_4x'],
              linewidth=2,
-             label='later WSU (4x)')
-    
+             label='later WSU')
+
+    if band1_band2_estimate:
+        plt.fill_between(band1_band2_estimate['wsu_sysperf_later_4x_stepped2_typical'+'_'+label]['bins'][1:],
+                         band1_band2_estimate['wsu_sysperf_later_4x_stepped2_typical'+'_'+label]['min'],
+                         y2=band1_band2_estimate['wsu_sysperf_later_4x_stepped2_typical'+'_'+label]['max'],
+                         step='pre',
+                         color=mycolors['later_4x'],
+                         alpha=0.4)
+        plt.stairs(band1_band2_estimate['wsu_sysperf_later_4x_stepped2_typical'+'_'+label]['median'],
+                   band1_band2_estimate['wsu_sysperf_later_4x_stepped2_typical'+'_'+label]['bins'],
+                   label='w/ Bands 1 & 2',
+                   color=mycolors['later_4x'],
+                   linewidth=2,
+                   linestyle=':')
     
     if add_wavg:
-        wavg = np.average(mydb['wsu_sysperf_later_4x_stepped2_typical'],weights=mydb['weights_all'])
+        wavg = np.average(mydb['wsu_sysperf_later_4x_stepped2_typical'+'_'+label],weights=mydb['weights_all'])
         plt.axvline(np.log10(wavg), color=mycolors['later_4x'], linestyle=':')
         #plt.text(np.log10(wavg)+0.05,0.0013,'{:5.2e} \nPFLOP/s'.format(wavg),
         #         color='#d62728')
@@ -2134,18 +2321,18 @@ def plot_soc_result_cumulative(mydb,
         plt.axvline(np.log10(sp_band2_4x), color='black', linestyle='-.', label='Band 2 \nSpectral Scan (4x)')
 
     plt.axhline(0.1,color='gray',linestyle=':')
-    plt.text(-2.7,0.1,'90% smaller')
+    plt.text(-4,0.1,'10% larger')
 
     plt.axhline(0.05,color='gray',linestyle=':')
-    plt.text(-2.7,0.05,'95% smaller')
+    plt.text(-4,0.05,'5% larger')
 
     plt.axhline(0.01,color='gray',linestyle=':')
-    plt.text(-2.7,0.01,'99% smaller')
+    plt.text(-4,0.01,'1% larger')
 
     plt.grid(which='both',axis='both',linestyle=':')
     
     plt.xlabel('System Performance (PFLOP/s)')
-    plt.ylabel('Fraction of Larger Data')
+    plt.ylabel('Fraction of Time with Higher System Performances')
 
     plt.title(plot_title)
     plt.legend(loc='lower left')

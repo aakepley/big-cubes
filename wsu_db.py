@@ -1,11 +1,17 @@
-
-from astropy.table import Table, QTable, join, unique
+from astropy.table import Table, QTable, join, unique, vstack
 import numpy as np
 import astropy.units as u
 from astropy import constants as const
 import math
 import ipdb
 import matplotlib.pyplot as plt
+
+# define Gvis unit. if statement needed to cover reload.
+# Gvis needs to be in globals to get everything to match in vstack up top.
+# Otherwise it's not in the right name space (i.e., only in local namespace)
+if 'gvis' not in globals():
+    gvis = u.def_unit('Gvis',namespace=globals())
+    u.add_enabled_units([gvis])
 
 def calc_talon_specwidth(specwidth):
     '''
@@ -18,16 +24,25 @@ def calc_talon_specwidth(specwidth):
     * channel size
     * number of channels averaged
     '''
+
     import math
     
     talon_chan = 13.5 #kHz
 
-    if specwidth > talon_chan:
+    # array case
+    if type(specwidth) == np.ndarray:
+
+        chan_avg = np.floor(specwidth / talon_chan)
+        chan_avg[chan_avg < 1.0] = 1.0
+        specwidth_talon = talon_chan * chan_avg
+
+    # single value case
+    else:        
         chan_avg = float(math.floor(specwidth / talon_chan))
         if chan_avg < 1.0:
             chan_avg = 1.0
         specwidth_talon = talon_chan * chan_avg
-    
+            
     return specwidth_talon, chan_avg
 
 
@@ -158,17 +173,20 @@ def create_database(cycle7tab):
             
             # array info & WSU tint
             array_list.append(array)
-                       
+            
             if array == '12m':
                 nant_typical = 47
-                nant_array = 54
+                nant_array = 50 # corresponds to peak data rate calculations
                 nant_all = 66 #12m+7m+TP
-                wsu_tint = 3.024 #s
+                #wsu_tint = 3.024 #s
+                wsu_tint = 3.072 #s #updated value from Crystal on 2023/10/02
             elif array == '7m':
                 nant_typical = 10
-                nant_array = 12
+                nant_array = 12 # corresponds to peak data rate calculations
                 nant_all = 16 # total power plus 7m
-                wsu_tint = 10.08 #s
+                #wsu_tint = 10.08 #s
+                #wsu_tint = 10.24 #s # updated value from Crystal on 2023/10/12
+                wsu_tint = 9.984 #s # updated value from Crystal on 2023/11/1
 
             nant_typical_list.append(nant_typical)
             nant_array_list.append(nant_array)
@@ -337,14 +355,18 @@ def create_database(cycle7tab):
                 print("multiple bands in same MOUS " + mymous)
             band_list_array.append(band_list) ## is append going to cause problems here
             
-            # each spw likely to have 1.6GHz BW -- based on 1st F at antenna
-            spw_bw = 1.6 # GHz 
+
+            #spw_bw = 1.6 # GHz             # based on 1st F at antenna
+            spw_bw = 2.0 # GHz          # The 1st F is no more, so moving to 2 GHz.
             wsu_bandwidth_spw.append(spw_bw)
 
             # but at beginning only band 6 and band 2 will be upgraded. Band 2 is under dev now, so no band 2 in cycle 7.
             if band_list == 6:
                 bw = 16.0
-            elif (band_list >= 3) & (band_list <= 7) :
+            elif band_list == 3: ## Looks like upper end of band 2 will be competitive with current band 3 so assuming that band 3 -> upper band 2
+                bw = 16.0
+            #elif (band_list >= 3) & (band_list <= 7) :
+            elif (band_list >= 4) & (band_list <= 7) : ## Band 3 -> upper band 2
                 bw = 8.0
             # adding band 8 to early WSU
             elif (band_list >= 8 & band_list <= 10): 
@@ -442,12 +464,13 @@ def create_database(cycle7tab):
     # ------------------------------------
         
     # figure out max allowed channels for 1.6 GHz spw
-    nchan_max_talon_spw = 14880 * 8 # for 1.6 GHz spw with 8 FS
+    #nchan_max_talon_spw = 14880 * 8 # for 1.6 GHz spw with 8 FS
+    nchan_max_talon_spw = 14880 * 10 # for 2.0 GHz spw with 10 FS
     nchan_max_spw_finest = np.floor(nchan_max_talon_spw / if_mous_tab['wsu_chanavg_finest']) # max channels if averaged
     nchan_max_spw_stepped = np.floor(nchan_max_talon_spw / if_mous_tab['wsu_chanavg_stepped']) # max channels if averaged
     nchan_max_spw_stepped2 = np.floor(nchan_max_talon_spw / if_mous_tab['wsu_chanavg_stepped2']) # max channels if averaged
 
-    # calculate nchan for 1.6 GHz spw and finest channels
+    # calculate nchan for spw and finest channels
     if_mous_tab['wsu_nchan_spw_finest'] = np.floor((if_mous_tab['wsu_bandwidth_spw']/if_mous_tab['wsu_specwidth_finest']).decompose())
     # reduce nchan to less than max if necessary
     idx = if_mous_tab['wsu_nchan_spw_finest'] > nchan_max_spw_finest 
@@ -456,7 +479,7 @@ def create_database(cycle7tab):
         #ipdb.set_trace()
         if_mous_tab['wsu_nchan_spw_finest'][idx] = nchan_max_spw_finest[idx] 
 
-    # calculate nchan for 1.6 GHz spw and stepped channels    
+    # calculate nchan for spw and stepped channels    
     if_mous_tab['wsu_nchan_spw_stepped'] = np.floor((if_mous_tab['wsu_bandwidth_spw']/if_mous_tab['wsu_specwidth_stepped']).decompose())
     # reduce nchan to less than max if necessary
     idx = if_mous_tab['wsu_nchan_spw_stepped'] > nchan_max_spw_stepped 
@@ -465,14 +488,21 @@ def create_database(cycle7tab):
         #ipdb.set_trace()
         if_mous_tab['wsu_nchan_spw_stepped'][idx] = nchan_max_spw_stepped[idx] 
     
-    # calculate nchan for 1.6 GHz spw and stepped2 channels
+    # calculate nchan for spw and stepped2 channels
     if_mous_tab['wsu_nchan_spw_stepped2'] = np.floor((if_mous_tab['wsu_bandwidth_spw']/if_mous_tab['wsu_specwidth_stepped2']).decompose())
     idx = if_mous_tab['wsu_nchan_spw_stepped2'] > nchan_max_spw_stepped2 
     if np.sum(idx) > 0:
         print("SPW BW, stepped2: Adjusting number of channels to meet TALON max: " + str(np.sum(idx)))
         #ipdb.set_trace()
         if_mous_tab['wsu_nchan_spw_stepped2'][idx] = nchan_max_spw_stepped2[idx] 
-    
+
+    ## Calculate the aggregate number of channels
+    ## ------------------------------------------
+    for veltype in ['finest','stepped','stepped2']:
+        if_mous_tab['wsu_nchan_agg_'+veltype+'_early'] = if_mous_tab['wsu_nchan_spw_'+veltype] * if_mous_tab['wsu_nspw_early']
+        if_mous_tab['wsu_nchan_agg_'+veltype+'_later_2x'] = if_mous_tab['wsu_nchan_spw_'+veltype] * if_mous_tab['wsu_nspw_later_2x']
+        if_mous_tab['wsu_nchan_agg_'+veltype+'_later_4x'] = if_mous_tab['wsu_nchan_spw_'+veltype] * if_mous_tab['wsu_nspw_later_4x']
+        
     # fractional bandwidth
     # ---------------------
     
@@ -638,7 +668,7 @@ def calc_wsu_cal_tos():
 
     pass
 
-def add_rates_to_db(mydb):
+def add_rates_to_db(mydb, wsu_only=False, permous=False):
     '''
     Purpose: Add data rates and associated quantities to data base
 
@@ -653,39 +683,50 @@ def add_rates_to_db(mydb):
     # This will not change with WSU
     mydb['mfssize'] = calc_mfs_size(mydb['imsize'])
 
-    #array_list = ['typical','array']
-    array_list = ['typical']
+    array_list = ['typical','array']
+    #array_list = ['typical']
     #velres_list = ['stepped','stepped2']
     velres_list = ['stepped2']
+
+    # if per mous/source, don't want to multiple by ntarget
+    # if per mous, do want to multiply by ntarget
+    if permous:
+        ntarget = mydb['ntarget']
+    else:
+        ntarget = np.full(len(mydb),1.0)
         
     # calculate cube sizes, data rates, and data volumes.
-    for array in array_list:
-        for velres in velres_list:
 
-            # calculate cube sizes
-            # only depends on number of channels per spw
-            mydb['wsu_cubesize_'+velres] = calc_cube_size(mydb['imsize'], mydb['wsu_nchan_spw_'+velres])
+    for velres in velres_list:
 
-            for stage in ['early','later_2x','later_4x']:
+        # calculate cube sizes
+        # only depends on number of channels per spw
+        mydb['wsu_cubesize_'+velres] = calc_cube_size(mydb['imsize'], mydb['wsu_nchan_spw_'+velres])
 
-                # calculate product size
-                # depends on number of cubes
-                mydb['wsu_productsize_'+stage+'_'+velres] = 2.0 * (mydb['wsu_cubesize_'+velres] + mydb['mfssize']) * mydb['wsu_nspw_'+stage]
+        for stage in ['early','later_2x','later_4x']:
+            
+            # calculate product size
+            # depends on number of cubes
+            mydb['wsu_productsize_'+stage+'_'+velres] = 2.0 * (mydb['wsu_cubesize_'+velres] + mydb['mfssize']) * mydb['wsu_nspw_'+stage] * ntarget
 
+            for array in array_list:
                 # calculate data rates and data volumes for the visibilities
-                calc_rates_for_db(mydb,array=array,correlator='wsu',stage=stage,velres=velres)                
+                calc_rates_for_db(mydb,array=array,correlator='wsu',stage=stage,velres=velres,permous=permous)                
 
+                if not wsu_only:
+                    # calculate BLC correlator values
+                    calc_rates_for_db(mydb,array=array,correlator='blc',stage='',velres='')
+
+    if not wsu_only:
 
         # calculate cube sizes
         mydb['blc_cubesize'] = calc_cube_size(mydb['imsize'], mydb['blc_nchan_max'])
         mydb['blc_cubesize_sum'] = calc_cube_size(mydb['imsize'], mydb['blc_nchan_agg'])
         mydb['blc_productsize'] = 2.0 * (mydb['blc_cubesize_sum'] + mydb['mfssize']  * mydb['blc_nspw'])
         
-        # calculate BLC correlator values
-        calc_rates_for_db(mydb,array=array,correlator='blc',stage='',velres='')
                 
     
-def calc_rates_for_db(mydb, array='typical',correlator='wsu',stage='early', velres='stepped2'):
+def calc_rates_for_db(mydb, array='typical',correlator='wsu',stage='early', velres='stepped2', permous=False):
     '''
     Purpose: calculate data rates for a specific case
     
@@ -721,13 +762,15 @@ def calc_rates_for_db(mydb, array='typical',correlator='wsu',stage='early', velr
     mydb[correlator+'_datarate_'+mylabel] = calc_datarate(Nbyte, Napc, Nant, Nchannels, Npols, Tintegration) #GB/s
     mydb[correlator+'_visrate_'+mylabel] = calc_visrate(Nant, Npols, Nchannels, Tintegration)  #Gvis/hr
 
-    mydb[correlator+'_datavol_'+mylabel+'_target'] = mydb[correlator+'_datarate_'+mylabel] * mydb['target_time']  # GB/s * s = GB
+    if not permous:
+        mydb[correlator+'_datavol_'+mylabel+'_target'] = mydb[correlator+'_datarate_'+mylabel] * mydb['target_time']  # GB/s * s = GB
     mydb[correlator+'_datavol_'+mylabel+'_target_tot'] = mydb[correlator+'_datarate_'+mylabel] * mydb['target_time_tot']  # GB/s * s = GB
 
     mydb[correlator+'_datavol_'+mylabel+'_cal'] = mydb[correlator+'_datarate_'+mylabel] * mydb['cal_time'] # GB/s * s = GB
     mydb[correlator+'_datavol_'+mylabel+'_total'] = mydb[correlator+'_datarate_'+mylabel] * mydb['time_tot'] # GB/s * s = GB
 
-    mydb[correlator+'_nvis_'+mylabel+'_target'] = mydb[correlator+'_visrate_'+mylabel] * (mydb['target_time'].to(u.hr))  # Gvis/hr * hr = Gvis
+    if not permous:
+        mydb[correlator+'_nvis_'+mylabel+'_target'] = mydb[correlator+'_visrate_'+mylabel] * (mydb['target_time'].to(u.hr))  # Gvis/hr * hr = Gvis
     mydb[correlator+'_nvis_'+mylabel+'_target_tot'] = mydb[correlator+'_visrate_'+mylabel] * (mydb['target_time_tot'].to(u.hr)) # Gvis/hr * hr = Gvis
         
     mydb[correlator+'_nvis_'+mylabel+'_cal'] = mydb[correlator+'_visrate_'+mylabel]  * (mydb['cal_time'].to(u.hr)) # Gvis/hr * hr = Gvis
@@ -768,9 +811,6 @@ def calc_visrate(Nant, Npols, Nchannels, Tintegration):
     ----------------------------------------------------
     1/4/2023    A.A. Kepley     Original Code
     '''
-
-    # define Gvis unit
-    gvis = u.def_unit('Gvis')
 
     Nbase =  Nant * (Nant-1.0)/2.0
 
@@ -1094,6 +1134,9 @@ def calc_wsu_stats(mydb,stage='early'):
     Purpose: calculate statistics for WSU Fidicual Properties
 
     Output: dictionary
+
+    OUT OF DATE AS of 10/30/2023: I have a new calc stats code that does this over all the Band 1 &
+    Band 2 realizations.
     
     
     Date        Programmer      Description of Changes
@@ -1175,6 +1218,9 @@ def make_wsu_stats_table(mystats, fileout='test.csv'):
     Input: my stats
 
     Output: cvs table of WSU stats
+
+    ***OUTDATED***
+
 
     Date        Programmer      Description of Changes
     --------------------------------------------------
@@ -1321,6 +1367,396 @@ def make_wsu_stats_table(mystats, fileout='test.csv'):
                                      mystats['7m']['wsu_'+mycat+'_'+myval]/mystats['7m']['blc_'+mycat+'_'+myval]])
                 
 
+
+def make_wsu_stats_table_newstats_datarate(mystats,fileout='test.tex'):
+    '''
+    Purpose: create giant csv table with stats properties
+
+    Input: dictionary with summary statistics.
+        stats[quantity][array][value]
+
+    Output: latex table
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------
+    10/31/2023  A.A. Kepley     Original Code. Also Happy Halloween!
+    '''
+
+    fout = open(fileout,'w')
+
+    tablehead = '''\definecolor{myband}{RGB}{255,235,205}
+\definecolor{my2x}{RGB}{182, 208, 226}
+\definecolor{my4x}{RGB}{251, 206, 177}
+
+\\begin{table}
+\centering
+\caption{Overview of Data Rate Properties for  WSU \label{tab:overview_datarates}}
+\\begin{tblr}{colspec={|[2pt]Q[l]|Q[l]|[1pt]c|c|c|c|c|c|[2pt]},
+width=\\textwidth,
+cells = {font=\scriptsize}}
+\\hline[2pt]
+\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c,bg=my2x} Early WSU  & & & \SetCell[c=3]{c,bg=my4x} Later WSU & &  \\\\
+& & 12m & 7m & both & 12m & 7m & both \\\\ \hline[1pt]
+'''
+
+    fout.write(tablehead)
+    
+    for myquant in ['datarate','nchan_agg','sysperf']:
+        if myquant == 'datarate':
+            myquant_label = 'Data Rate'
+        elif myquant == 'nchan_agg':
+            myquant_label = '{Number of \\\\ of Channels}'
+        elif myquant == 'sysperf':
+            myquant_label = '{System \\\\ Performance}'
+        else:
+            print("Quantity unknown: " +myquant)
+
+
+        for myval in ['median','wavg','max']:
+            if myval == 'median':
+                myval_label = 'Median'
+                outstr = "{:s} & {:s}".format(myquant_label,myval_label) 
+            elif myval == 'wavg':
+                myval_label = '{Time Weighted \\\\ Average}'
+                outstr = " & {:s}".format(myval_label) 
+            elif myval == 'max':
+                myval_label = 'Maximum'
+                outstr = " {:s} & {:s}".format(myquantunit,myval_label) 
+            else:
+                print("Value unknown: "+myval)
+
+
+
+            for mystage in ['early','later_4x']:
+                
+                for myarray in ['12m','7m','both']:
+                    if myquant == 'datarate':
+                        myfullquant = 'wsu_datarate_'+mystage+'_stepped2_typical'
+                        myquantunit = mystats[myfullquant]['unit']
+                        outstr = outstr + "& ${:5.3f} \\pm {:5.3f}$".format(mystats[myfullquant][myarray][myval+"_mean"],mystats[myfullquant][myarray][myval+"_std"])
+                        
+                    elif myquant == 'nchan_agg':
+                        myfullquant = 'wsu_nchan_agg_stepped2_'+mystage
+                        myquantunit = ''
+                        outstr = outstr + "& {:6,d}".format(round(mystats[myfullquant][myarray][myval+"_mean"]))
+                        #outstr = outstr + "& $ {{ {:7.3e} \\\\ \\pm {:7.3e} }} $".format(round(mystats[myfullquant][myarray][myval+"_mean"]),mystats[myfullquant][myarray][myval+"_std"])
+
+                    elif myquant == 'sysperf':
+                        myfullquant = 'wsu_sysperf_'+mystage+'_stepped2_typical_aprojonly'
+                        myquantunit = 'PFLOP/s'
+                        outstr = outstr + "& $  {:5.3f}\\pm {:5.3f} $".format(mystats[myfullquant][myarray][myval+"_mean"],mystats[myfullquant][myarray][myval+"_std"])
+                    else:
+                        print('Quantity unknown: '+myquant)
+
+            outstr = outstr + "\\\\ \n"
+            fout.write(outstr)
+        if myquant != 'sysperf': 
+            outstr = "\hline \n"
+            fout.write(outstr)
+
+    tablefoot = '''
+\hline[2pt]
+\end{tblr}
+\end{table}   
+    '''
+
+    fout.write(tablefoot)
+    fout.close()
+
+    
+def make_wsu_stats_table_newstats_datavol(mystats,fileout='test2.tex'):
+    '''
+    Purpose: create giant csv table with stats properties
+
+    Input: dictionary with summary statistics.
+        stats[quantity][array][value]
+
+    Output: latex table
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------
+    10/31/2023  A.A. Kepley     Original Code. Also Happy Halloween!
+    '''
+    fout = open(fileout,'w')
+
+    tablehead = '''\definecolor{myband}{RGB}{255,235,205}
+\definecolor{my2x}{RGB}{182, 208, 226}
+\definecolor{my4x}{RGB}{251, 206, 177}
+
+\\begin{table}
+\centering
+\caption{Overview of Data Volume Properties for WSU \label{tab:overview_datavol}}
+\\begin{tblr}{colspec={|[2pt]Q[l]|Q[l]|[1pt]c|c|c|c|c|c|[2pt]},
+width=\\textwidth,
+cells = {font=\scriptsize}}
+\\hline[2pt]
+\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c,bg=my2x} Early WSU  & & & \SetCell[c=3]{c,bg=my4x} Later WSU & &  \\\\
+& & 12m & 7m & both & 12m & 7m & both \\\\ \hline[1pt]
+'''
+
+    fout.write(tablehead)
+    
+    for myquant in ['datavol_total','datavol_target_tot','productsize']:
+        if myquant == 'datavol_total':
+            myquant_label = '{Visibility Data \\\\ Volume (Total) }'
+        elif myquant == 'datavol_target_tot':
+            myquant_label = '{Visibility Data \\\\ Volume (Science)}'
+        elif myquant == 'productsize':
+            myquant_label = '{Product Size \\\\ (Total)}'
+        else:
+            print("Quantity unknown: " +myquant)
+
+
+        for myval in ['median','wavg','max','total']:
+            if myval == 'median':
+                myval_label = '{Median (TB)}'
+                outstr = "{:s} & {:s}".format(myquant_label,myval_label) 
+                scale = 1.0
+            elif myval == 'wavg':
+                myval_label = '{Time Weighted \\\\ Average (TB)} '
+                outstr = " & {:s}".format(myval_label) 
+                scale = 1.0
+            elif myval == 'max':
+                myval_label = 'Maximum (TB)'
+                outstr = " & {:s}".format(myval_label) 
+                scale = 1.0
+            elif myval == 'total':
+                myval_label = 'Total (PB)'
+                outstr = "  & {:s}".format(myval_label)
+                scale = 2.0 * 1000.0 # divide by 2 cycles and 1000 to get 1 cycle in PB
+            else:
+                print("Value unknown: "+myval)
+
+            for mystage in ['early','later_4x']:
+                
+                for myarray in ['12m','7m','both']:
+                    if myquant == 'datavol_total':
+                        myfullquant = 'wsu_datavol_'+mystage+'_stepped2_typical_total'
+                        #myquantunit = mystats[myfullquant]['unit']
+                        outstr = outstr + "& ${:5.2f} \\pm {:5.2f}$".format(mystats[myfullquant][myarray][myval+"_mean"]/scale,mystats[myfullquant][myarray][myval+"_std"]/scale)                
+                    elif myquant == 'datavol_target_tot':
+                        myfullquant = 'wsu_datavol_'+mystage+'_stepped2_typical_target_tot'
+                        #myquantunit = mystats[myfullquant]['unit']
+                        outstr = outstr + "& ${:5.2f} \\pm {:5.2f}$".format(mystats[myfullquant][myarray][myval+"_mean"]/scale,mystats[myfullquant][myarray][myval+"_std"]/scale)
+                    elif myquant == 'productsize':
+                        myfullquant = 'wsu_productsize_'+mystage+'_stepped2'
+                        #myquantunit = mystats[myfullquant]['unit']
+                        outstr = outstr + "& ${:5.2f} \\pm {:5.2f}$".format(mystats[myfullquant][myarray][myval+"_mean"]/scale,mystats[myfullquant][myarray][myval+"_std"]/scale)                
+                    else:
+                        print('Quantity unknown: '+myquant)
+
+            outstr = outstr + "\\\\ \n"
+            fout.write(outstr)
+        if myquant != 'productsize': 
+            outstr = "\hline \n"
+            fout.write(outstr)
+
+    tablefoot = '''
+\hline[2pt]
+\end{tblr}
+\end{table}   
+    '''
+
+    fout.write(tablefoot)
+    fout.close()
+    
+    
+def make_blc_stats_table_newstats_datarate(mystats,fileout='test.tex'):
+    '''
+    Purpose: create giant csv table with stats properties
+
+    Input: dictionary with summary statistics.
+        stats[quantity][array][value]
+
+    Output: latex table
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------
+    10/31/2023  A.A. Kepley     Original Code. Also Happy Halloween!
+    11/3/2023   A.A. Kepley     Updated for BLC
+    '''
+
+    fout = open(fileout,'w')
+
+    tablehead = '''\definecolor{myband}{RGB}{255,235,205}
+\definecolor{my2x}{RGB}{182, 208, 226}
+\definecolor{my4x}{RGB}{251, 206, 177}
+
+\\begin{table}
+\centering
+\caption{Overview of Data Rate Properties for  BLC/ACA \label{tab:overview_datarates_blc}}
+\\begin{tblr}{colspec={|[2pt]Q[l]|Q[l]|[1pt]c|c|c|[2pt]},
+width=\\textwidth,
+cells = {font=\scriptsize}}
+\\hline[2pt]
+\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c,bg=myband} BLC/ACA  & &    \\\\
+& & 12m & 7m & both \\\\ \hline[1pt]
+'''
+
+    fout.write(tablehead)
+    
+    for myquant in ['datarate','nchan_agg','sysperf']:
+        if myquant == 'datarate':
+            myquant_label = 'Data Rate'
+            myquantunit = 'MB/s'
+            scale= 0.001
+        elif myquant == 'nchan_agg':
+            myquant_label = '{Number of \\\\ of Channels}'
+            myquantunit = ''
+            scale=1.0
+        elif myquant == 'sysperf':
+            myquant_label = '{System \\\\ Performance}'
+            myquantunit = 'TFLOP/s'
+            scale=0.001
+        else:
+            print("Quantity unknown: " +myquant)
+
+
+        for myval in ['median','wavg','max']:
+            if myval == 'median':
+                myval_label = 'Median'
+                outstr = "{:s} & {:s}".format(myquant_label,myval_label) 
+            elif myval == 'wavg':
+                myval_label = '{Time Weighted \\\\ Average}'
+                outstr = " & {:s}".format(myval_label) 
+
+            elif myval == 'max':
+                myval_label = 'Maximum'
+                outstr = " {:s} & {:s}".format(myquantunit,myval_label)                 
+            else:
+                print("Value unknown: "+myval)
+
+                
+            for myarray in ['12m','7m','both']:
+                if myquant == 'datarate':
+                    myfullquant = 'blc_datarate_typical'
+                    outstr = outstr + "& ${:5.2f} $".format(mystats[myfullquant][myarray][myval+"_mean"]/scale)
+                elif myquant == 'nchan_agg':
+                    myfullquant = 'blc_nchan_agg'
+                    outstr = outstr + "& {:6,d}".format(round(mystats[myfullquant][myarray][myval+"_mean"]/scale))
+                    #outstr = outstr + "& ${{ {:7.3e} \pm {:7.3e} }}$".format(round(mystats[myfullquant][myarray][myval+"_mean"]),mystats[myfullquant][myarray][myval+"_std"])
+
+                elif myquant == 'sysperf':
+                    myfullquant = 'blc_sysperf_typical_aprojonly'
+                    outstr = outstr + "& ${:5.2f}$".format(mystats[myfullquant][myarray][myval+"_mean"]/scale)
+                else:
+                    print('Quantity unknown: '+myquant)
+
+            outstr = outstr + "\\\\ \n"
+            fout.write(outstr)
+
+        if myquant != 'sysperf': 
+            outstr = "\hline \n"
+            fout.write(outstr)
+
+    tablefoot = '''
+\hline[2pt]
+\end{tblr}
+\end{table}   
+    '''
+
+    fout.write(tablefoot)
+    fout.close()
+
+     
+def make_blc_stats_table_newstats_datavol(mystats,fileout='test2.tex'):
+    '''
+    Purpose: create giant csv table with stats properties
+
+    Input: dictionary with summary statistics.
+        stats[quantity][array][value]
+
+    Output: latex table
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------
+    10/31/2023  A.A. Kepley     Original Code. Also Happy Halloween!
+    '''
+    
+    fout = open(fileout,'w')
+    
+    tablehead = '''\definecolor{myband}{RGB}{255,235,205}
+\definecolor{my2x}{RGB}{182, 208, 226}
+ \definecolor{my4x}{RGB}{251, 206, 177}
+
+\\begin{table}
+\centering
+\caption{Overview of Data Volume Properties for BLC/ACA \label{tab:overview_datavol_blc}}
+\\begin{tblr}{colspec={|[2pt]Q[l]|Q[l]|[1pt]c|c|c|[2pt]},
+width=\\textwidth,
+cells = {font=\scriptsize}}
+\\hline[2pt]
+\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c,bg=myband} BLC/ACA & &    \\\\
+& & 12m & 7m & both \\\\ \hline[1pt]
+'''
+
+    fout.write(tablehead)
+    
+    for myquant in ['datavol_total','datavol_target_tot','productsize']:
+        if myquant == 'datavol_total':
+            myquant_label = '{Visibility Data \\\\ Volume (Total) }'
+        elif myquant == 'datavol_target_tot':
+            myquant_label = '{Visibility Data \\\\ Volume (Science)}'
+        elif myquant == 'productsize':
+            myquant_label = '{Product Size \\\\ (Total)}'
+        else:
+            print("Quantity unknown: " +myquant)
+
+
+        for myval in ['median','wavg','max','total']:
+            if myval == 'median':
+                myval_label = '{Median (GB)}'
+                outstr = "{:s} & {:s}".format(myquant_label,myval_label) 
+                scale = 0.001
+            elif myval == 'wavg':
+                myval_label = '{Time Weighted \\\\ Average (GB)} '
+                outstr = " & {:s}".format(myval_label) 
+                scale = 0.001
+            elif myval == 'max':
+                myval_label = 'Maximum (TB)'
+                outstr = " & {:s}".format(myval_label) 
+                scale = 1.0
+            elif myval == 'total':
+                myval_label = 'Total (TB)'
+                outstr = "  & {:s}".format(myval_label)
+                scale = 2.0 # divide by 2 cycles and 1000 to get 1 cycle in PB
+            else:
+                print("Value unknown: "+myval)
+                
+            for myarray in ['12m','7m','both']:
+                if myquant == 'datavol_total':
+                    myfullquant = 'blc_datavol_typical_total'
+                    #myquantunit = mystats[myfullquant]['unit']
+                    outstr = outstr + "& ${:5.2f} \\pm {:5.2f}$".format(mystats[myfullquant][myarray][myval+"_mean"]/scale,mystats[myfullquant][myarray][myval+"_std"]/scale)                
+                elif myquant == 'datavol_target_tot':
+                    myfullquant = 'blc_datavol_typical_target_tot'
+                    #myquantunit = mystats[myfullquant]['unit']
+                    outstr = outstr + "& ${:5.2f} \\pm {:5.2f}$".format(mystats[myfullquant][myarray][myval+"_mean"]/scale,mystats[myfullquant][myarray][myval+"_std"]/scale)
+                elif myquant == 'productsize':
+                    myfullquant = 'blc_productsize'
+                    #myquantunit = mystats[myfullquant]['unit']
+                    outstr = outstr + "& ${:5.2f} \\pm {:5.2f}$".format(mystats[myfullquant][myarray][myval+"_mean"]/scale,mystats[myfullquant][myarray][myval+"_std"]/scale)                
+                else:
+                    print('Quantity unknown: '+myquant)
+
+            outstr = outstr + "\\\\ \n"
+            fout.write(outstr)
+
+        if myquant != 'productsize': 
+            outstr = "\hline \n"
+            fout.write(outstr)
+
+    tablefoot = '''
+\hline[2pt]
+\end{tblr}
+\end{table}   
+    '''
+
+    fout.write(tablefoot)
+    fout.close()
+
+
+                    
 def make_mitigation_stats_table(mydb, maxcubesize=40*u.GB,
                                 maxcubelimit=60*u.GB,
                                 maxproductsize=500*u.GB):
@@ -1396,7 +1832,7 @@ def make_mitigation_stats_table(mydb, maxcubesize=40*u.GB,
                 
 
 
-def calc_wsu_sysperf_stats(mydb, stages = ['early','later_2x','later_4x']):
+def calc_wsu_sysperf_stats(mydb, label='allgrid', stages = ['early','later_2x','later_4x']):
     '''
     Purpose: calculate statistics for WSU Fidicual Properties
 
@@ -1419,18 +1855,18 @@ def calc_wsu_sysperf_stats(mydb, stages = ['early','later_2x','later_4x']):
     results = {}
     results['stage'] = 'blc'
     
-    results['median'] =  np.median(mydb['blc_sysperf_typical'])
-    results['wavg']  = np.average(mydb['blc_sysperf_typical'], weights=mydb['weights_all'])
-    results['max']= np.max(mydb['blc_sysperf_typical'])
+    results['median'] =  np.median(mydb['blc_sysperf_typical'+'_'+label])
+    results['wavg']  = np.average(mydb['blc_sysperf_typical'+'_'+label], weights=mydb['weights_all'])
+    results['max']= np.max(mydb['blc_sysperf_typical'+'_'+label])
 
     allresults.append(results)
     
     for mystage in stages:
         results = {}
         results['stage'] = mystage
-        results['median'] = np.median(mydb['wsu_sysperf_'+mystage+'_stepped2_typical'])
-        results['wavg'] = np.average(mydb['wsu_sysperf_'+mystage+'_stepped2_typical'],weights=mydb['weights_all'])
-        results['max'] = np.max(mydb['wsu_sysperf_'+mystage+'_stepped2_typical'])
+        results['median'] = np.median(mydb['wsu_sysperf_'+mystage+'_stepped2_typical'+'_'+label])
+        results['wavg'] = np.average(mydb['wsu_sysperf_'+mystage+'_stepped2_typical'+'_'+label],weights=mydb['weights_all'])
+        results['max'] = np.max(mydb['wsu_sysperf_'+mystage+'_stepped2_typical'+'_'+label])
 
         allresults.append(results)
 
@@ -1536,6 +1972,7 @@ def fix_scientific_categories(mydb):
                                                                    "Galaxy structure & evolution","Gamma Ray Bursts (GRB)",
                                                                    "Galaxy Clusters"],
                       'Galaxies and galactic nuclei': ["Starbursts", "star formation","Active Galactic Nuclei (AGN)/Quasars (QSO)",
+
                                                        "Spiral galaxies","Merging and interacting galaxies","Surveys of galaxies",
                                                        "Outflows","jets", "feedback","Early-type galaxies",
                                                        "Galaxy groups and clusters","Galaxy chemistry","Galactic centres/nuclei",
@@ -1606,3 +2043,755 @@ def fix_scientific_categories(mydb):
         mydb.add_column(newcat_array,6,'scientific_category_proposal')
         
                            
+
+def remove_projects(mydb, array='12m', time_frac=0.05):
+    '''
+    Purpose: remove some projects from the total and return database with projects removed
+
+    Input: mydb
+
+    Output: new data base with projects removed.
+
+    Method: Following method outlined by IST/John Carpenter.
+    I did parameterize so can make it easy.
+
+    TODOS:
+    -- How to implement varying band probability?
+    
+    Date        Programmer      Description of Changes
+    -----------------------------------------------------
+    9/19/2023   A.A. Kepley     Original Code
+    
+    '''
+
+    # copy old data base to new data base
+    newdb = mydb.copy()
+
+    # calculate number of rows in original database
+    orig_nrows = len(mydb)
+    
+    # figure out how much time I should remove.
+    total_time = np.nansum(mydb['time_tot'][mydb['array'] == array])
+    replace_time = total_time * time_frac
+    
+    # should probably do something smarter with band selection here
+    idx = (mydb['array'] == array) & ((mydb['band'] == 3.0) | (mydb['band'] == 6.0) | (mydb['band'] == 7.0))
+    nrows = len(mydb[idx])
+
+    # initialize random number generators
+    rng = np.random.default_rng()
+    
+    ## set up counters
+    time_accum = 0.0 * u.s
+    myrows = []
+
+    # go through and remove projects
+    while time_accum <= replace_time:
+
+        # high = 1+the max value generated so nrows is right here.
+        myrow_tmp = rng.integers(low=0,high=nrows,size=1)
+
+        # if we haven't already picked the row
+        if myrow_tmp not in myrows:
+
+            #add the row to the list of rows removed
+            myrows.extend(myrow_tmp)
+            
+            # add to the accumulate time
+            time_accum = time_accum + mydb[idx][myrow_tmp]['time_tot'][0]
+            
+            # match the mous for the given row to the main data base
+            idx_match = newdb['mous'] == mydb[idx][myrow_tmp]['mous'][0]
+            
+            # remove the row from the original data base.
+            # A bit of hack that relies on np interpreting a boolean True as 1
+            newdb.remove_rows(np.argmax(idx_match))
+
+    # get the number of new rows in the data base
+    new_nrows = len(newdb)
+
+    # difference in number of rows in database.
+    diff = orig_nrows - new_nrows
+    diff_time = time_accum ## or do I want to calculate?
+    
+    # print out some diagnostics
+    print('---')
+    print("Total number of MOUSes:", orig_nrows)
+    print("Total number of MOUSes meeting the criteria:", nrows)
+    print("Number of MOUSes removed:", diff)
+    print("New number of MOUSes:", new_nrows)
+    print("\n")
+    print("Total time:", total_time.to('hr'))
+    print("Time to be replaced:", replace_time.to('hr'))
+    print("Time replaced:", time_accum.to('hr'))
+    print('---')
+    
+    return newdb, time_accum 
+
+
+def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr):
+    '''
+    Purpose: Add band1 and band2 information into data base by
+    scaling from band 3.
+
+    Input: database with replacement projects removed
+
+    Output: updated database with estimates for new bands. Do I want to output everything
+    or just the new projects?
+
+    Method:
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------------
+    9/20/2023  A.A. Kepley     Original Code
+    '''
+
+    # fiducial band 1 and 2 frequencies
+    band1_freq = 39.0 * u.GHz
+    band2_freq = 75.0 * u.GHz
+
+    # copy old data base to new database
+    newdb = mydb.copy()
+
+    # calculate number of rows in original data base.
+    orig_nrows = len(mydb)
+
+    # select relevant portions of the data base
+    idx = (mydb['array'] == array) & (mydb['band'] == 3.0)
+    nrows = len(mydb[idx])
+
+    # initialize random number generator
+    rng = np.random.default_rng()
+
+    ## set up counters
+    time_accum = 0.0 * u.s
+    myrows = []
+    db_update = None
+    
+    ## need to convert total_time to seconds
+    while time_accum <= total_time.to('s'):
+        myrow_tmp = rng.integers(low=0,high=nrows,size=1)
+
+        if myrow_tmp not in myrows:
+            myrows.extend(myrow_tmp)
+            time_accum = time_accum + mydb[idx][myrow_tmp]['time_tot'][0]
+
+            ## create new info with band 1 or 2 info
+            old_info = mydb[idx][myrow_tmp]
+            new_info = old_info
+            
+            new_info['band'] = band
+            new_info['cycle'] = 'estimate'
+
+            # setup the band 1 and 2 properties.
+            if band == 1.0:
+                new_info['wsu_freq'] = band1_freq
+                new_info['wsu_bandwidth_early'] = 16.0*u.GHz
+                new_info['wsu_bandwidth_later_2x'] = 16.0*u.GHz
+                new_info['wsu_bandwidth_later_4x'] = 16.0*u.GHz ## Can't be upgraded beyond 16 GHz.
+                
+            if band == 2.0:
+                new_info['wsu_freq'] = band2_freq
+                new_info['wsu_bandwidth_early'] = 16.0*u.GHz
+                new_info['wsu_bandwidth_later_2x'] = 16.0*u.GHz
+                new_info['wsu_bandwidth_later_4x'] = 32.0*u.GHz ## Cant get 32GHz.
+
+            # scale frequency dependent quantities.
+            scale_factor = old_info['wsu_freq'] / new_info['wsu_freq']
+            
+            new_info['s_fov'] = old_info['s_fov'] * scale_factor
+            new_info['s_resolution'] = old_info['s_resolution'] * scale_factor
+            new_info['pb'] = old_info['pb'] * scale_factor
+            new_info['cell'] = old_info['cell'] * scale_factor
+
+            # if this is the first new entry, just create a new table.
+            # otherwise add to existing table.
+            if db_update is None:                
+                db_update = QTable(new_info)
+            else:
+                db_update = vstack([db_update,new_info])
+
+
+    # removing irrelevant BLC columns. This works better than blanking.
+    db_update.remove_columns(['blc_npol','blc_nspw','blc_specwidth','blc_freq',
+                              'blc_velres','blc_nchan_agg','blc_nchan_max',
+                              'blc_bandwidth_max','blc_bandwidth_agg'])
+
+    # calculating the number of spectral windows this way allows me to easily propagate any spw related changes.    
+    db_update['wsu_nspw_early'] = np.round(db_update['wsu_bandwidth_early']/db_update['wsu_bandwidth_spw']).value
+    db_update['wsu_nspw_later_2x'] = np.round(db_update['wsu_bandwidth_later_2x']/db_update['wsu_bandwidth_spw']).value
+    db_update['wsu_nspw_later_4x'] = np.round(db_update['wsu_bandwidth_later_4x']/db_update['wsu_bandwidth_spw']).value
+
+
+    #calculating new specwidth, velres, and chanavg. 
+    for veltype in ['finest','stepped','stepped2']:
+        vel_res_tmp = np.round(db_update['wsu_velres_'+veltype],1) ## need the round to get the steps ## has units attachd.
+        specwidth_tmp = ((vel_res_tmp / const.c.to('km/s')) * db_update['wsu_freq'].to('Hz')).to('kHz')
+        specwidth_wsu, chanavg_wsu = calc_talon_specwidth(specwidth_tmp.value) ## kHz, nchan
+        wsu_velres = ((specwidth_wsu * 1e3) /(db_update['wsu_freq'].to('Hz').value)) * const.c.to('km/s').value ## km/z
+        
+        db_update['wsu_specwidth_'+veltype] = specwidth_wsu *u.kHz
+        db_update['wsu_chanavg_'+veltype] = chanavg_wsu 
+        db_update['wsu_velres_'+veltype] = wsu_velres * u.km/u.s
+        
+        db_update['wsu_nchan_spw_'+veltype] = np.floor((db_update['wsu_bandwidth_spw']/db_update['wsu_specwidth_'+veltype]).decompose())
+
+        db_update['wsu_nchan_agg_'+veltype+'_early'] = db_update['wsu_nchan_spw_'+veltype] * db_update['wsu_nspw_early']
+        db_update['wsu_nchan_agg_'+veltype+'_later_2x'] = db_update['wsu_nchan_spw_'+veltype] * db_update['wsu_nspw_later_2x']
+        db_update['wsu_nchan_agg_'+veltype+'_later_4x'] = db_update['wsu_nchan_spw_'+veltype] * db_update['wsu_nspw_later_4x']
+        
+
+    # calculating fractional banddwidth
+      
+    db_update['wsu_frac_bw_early'] = db_update['wsu_bandwidth_early']/db_update['wsu_freq']
+    db_update['wsu_frac_bw_later_2x'] = db_update['wsu_bandwidth_later_2x']/db_update['wsu_freq']
+    db_update['wsu_frac_bw_later_4x'] = db_update['wsu_bandwidth_later_4x']/db_update['wsu_freq']
+    db_update['wsu_frac_bw_spw'] = db_update['wsu_bandwidth_spw']/db_update['wsu_freq']
+    
+        
+    ## calculate data rates, data volumes, and cube sizes
+    add_rates_to_db(db_update, wsu_only=True, permous=True)
+
+    # calculate required system performance
+    calc_sysperf(db_update,
+                 label='allgrid',
+                 mosaic_aproject=True,
+                 wproject=True)
+
+    calc_sysperf(db_update,
+                 label='aprojonly',
+                 mosaic_aproject=True,
+                 wproject=False)
+        
+    return db_update
+    
+
+def generate_db_realizations(mydb, outDir='data/sample_band1_band2',filename='test',
+                             frac_12m=0.1, frac_7m=0.06, n=3):
+    '''
+    generate realizations of data base so I can calculate statistics
+
+    frac_12m: fraction of 12m data to remove (band 1 and 2 combined)
+
+    frac_7m: fraction of 7m data to remove (band1 and 2 combined)
+    
+    n: number of iterations
+
+    filename: name of resulting data base
+
+    outDir: directory to put data bases
+    
+    ## TODO:
+    might want to explicitly remove variables at the end of each loop to avoid issues.
+    
+    
+    Date        Programmer       Description of Changes
+    ---------------------------------------------------
+    10/2/2023   A.A. Kepley     Original Code
+    '''
+
+    import os
+
+    if not os.path.exists(outDir):
+        os.mkdir(outDir)
+    
+    for i in range(n):
+        
+        outfilename = "{0:s}_{1:03d}.ecsv".format(filename,i)
+        outfile = os.path.join(outDir,outfilename)
+        print('-------------')
+        print(outfile)
+        
+        (new_db_12m, time_12m) = remove_projects(mydb,array='12m',time_frac=0.1)
+        (new_db_12m_7m,time_7m) = remove_projects(new_db_12m,array='7m',time_frac=0.06)
+
+        
+        db_update_band1_12m = add_bands(new_db_12m_7m, array='12m', band=1.0,total_time=time_12m.to('hr')/2.0)        
+        db_update_band2_12m = add_bands(new_db_12m_7m, array='12m', band=2.0,total_time=time_12m.to('hr')/2.0)
+
+        db_update_band1_7m = add_bands(new_db_12m_7m, array='7m', band=1.0,total_time=time_7m.to('hr')/2.0)
+        db_update_band2_7m = add_bands(new_db_12m_7m, array='7m', band=2.0,total_time=time_7m.to('hr')/2.0)
+
+        wsu_all_band1_band2 = vstack([new_db_12m_7m, db_update_band1_12m, db_update_band2_12m, db_update_band1_7m, db_update_band2_7m])
+
+        # update the data weights.
+        wsu_all_band1_band2['weights_all'] = wsu_all_band1_band2['time_tot']/np.nansum(wsu_all_band1_band2['time_tot'])
+
+        # write out the new file
+        wsu_all_band1_band2.write(outfile,overwrite=True)
+        
+        
+        
+def calculate_dist(outDir='data/sample_band1_band2',
+                   filename='wsu_datarates_mit_per_mous_band12_20231002',             
+                   nbins=500):
+    
+    '''
+    calculate the max, median, min of the cumulative distribution functions.
+
+    outDir: directory with samples
+
+    filename: baseline for samples
+
+    quantity: quantity to calculate the cumulative distribution for/
+
+    bins: bins to calculate the cumulative distribution for. Otherwise, just use
+    the first data set to generate the bins.
+
+    TODO: modify to calculate multiple quantities and save as astropy table?
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    10/2/2023   A.A. Kepley     Original code
+    '''
+
+    import glob
+    import os
+    import re
+    
+    sample_list = glob.glob(os.path.join(outDir,filename+"_*.ecsv"))
+
+    quantity_list = ['wsu_cubesize_stepped2',
+                     'wsu_productsize_early_stepped2',                                  
+                     'wsu_datarate_early_stepped2_typical', # typical number of antennas
+                     'wsu_visrate_early_stepped2_typical',                                  
+                     'wsu_datavol_early_stepped2_typical_target_tot',
+                     'wsu_datavol_early_stepped2_typical_cal',
+                     'wsu_datavol_early_stepped2_typical_total',
+                     #'wsu_nvis_early_stepped2_typical_target_tot',
+                     #'wsu_nvis_early_stepped2_typical_cal',
+                     #'wsu_nvis_early_stepped2_typical_total',
+                     #'wsu_productsize_later_2x_stepped2',                                  
+                     #'wsu_datarate_later_2x_stepped2_typical',
+                     #'wsu_visrate_later_2x_stepped2_typical',                                  
+                     #'wsu_datavol_later_2x_stepped2_typical_target_tot',
+                     #'wsu_datavol_later_2x_stepped2_typical_cal',
+                     #'wsu_datavol_later_2x_stepped2_typical_total',
+                     #'wsu_nvis_later_2x_stepped2_typical_target_tot',
+                     #'wsu_nvis_later_2x_stepped2_typical_cal',
+                     #'wsu_nvis_later_2x_stepped2_typical_total',
+                     'wsu_productsize_later_4x_stepped2',                                  
+                     'wsu_datarate_later_4x_stepped2_typical',
+                     'wsu_visrate_later_4x_stepped2_typical',                                  
+                     'wsu_datavol_later_4x_stepped2_typical_target_tot',
+                     'wsu_datavol_later_4x_stepped2_typical_cal',
+                     'wsu_datavol_later_4x_stepped2_typical_total',
+                     #'wsu_nvis_later_4x_stepped2_typical_target_tot',
+                     #'wsu_nvis_later_4x_stepped2_typical_cal',
+                     #'wsu_nvis_later_4x_stepped2_typical_total',                     
+                     #'wsu_datarate_early_stepped2_array', ## peak number of antenna (total array)
+                     #'wsu_visrate_early_stepped2_array',                                  
+                     #'wsu_datavol_early_stepped2_array_target_tot',
+                     #'wsu_datavol_early_stepped2_array_cal',
+                     #'wsu_datavol_early_stepped2_array_total',
+                     #'wsu_nvis_early_stepped2_array_target_tot',
+                     #'wsu_nvis_early_stepped2_array_cal',
+                     #'wsu_nvis_early_stepped2_array_total',
+                     #'wsu_productsize_later_2x_stepped2',                                  
+                     #'wsu_datarate_later_2x_stepped2_array',
+                     #'wsu_visrate_later_2x_stepped2_array',                                  
+                     #'wsu_datavol_later_2x_stepped2_array_target_tot',
+                     #'wsu_datavol_later_2x_stepped2_array_cal',
+                     #'wsu_datavol_later_2x_stepped2_array_total',
+                     #'wsu_nvis_later_2x_stepped2_array_target_tot',
+                     #'wsu_nvis_later_2x_stepped2_array_cal',
+                     #'wsu_nvis_later_2x_stepped2_array_total',
+                     'wsu_productsize_later_4x_stepped2',                                  
+                     #'wsu_datarate_later_4x_stepped2_array',
+                     #'wsu_visrate_later_4x_stepped2_array',                                  
+                     #'wsu_datavol_later_4x_stepped2_array_target_tot',
+                     #'wsu_datavol_later_4x_stepped2_array_cal',
+                     #'wsu_datavol_later_4x_stepped2_array_total',
+                     #'wsu_nvis_later_4x_stepped2_array_target_tot',
+                     #'wsu_nvis_later_4x_stepped2_array_cal',
+                     #'wsu_nvis_later_4x_stepped2_array_total',
+                     'blc_sysperf_typical_allgrid',
+                     #'flops_per_vis_allgrid',
+                     'wsu_sysperf_early_stepped2_typical_allgrid',
+                     'wsu_sysperf_later_2x_stepped2_typical_allgrid',
+                     'wsu_sysperf_later_4x_stepped2_typical_allgrid',
+                     'blc_sysperf_typical_aprojonly',
+                     #'flops_per_vis_aprojonly',
+                     'wsu_sysperf_early_stepped2_typical_aprojonly',
+                     'wsu_sysperf_later_2x_stepped2_typical_aprojonly',
+                     'wsu_sysperf_later_4x_stepped2_typical_aprojonly']
+
+
+
+    myresults = {}
+    myresults_hist = {}
+    myresults_all = {}
+    
+    for i in np.arange(len(sample_list)):
+        mydb = Table.read(sample_list[i])        
+
+        # get column information
+        if i == 0:        
+            mycolumns = mydb.columns        
+            
+        for quantity in mycolumns:
+            if quantity in quantity_list:
+                                        
+                ## Getting complementary cumulative histogram information
+                ## -----------------------------------------------------
+                # add quantity to results keys
+                if quantity not in myresults.keys():
+                    myresults[quantity] = {}
+                    #print("adding "+quantity)
+                    
+                    
+                # do unit conversion on desired quantities.
+                if (re.search('productsize',quantity) or re.search('datavol',quantity)):
+                    myvals_full = mydb[quantity].to('TB')
+                    
+                else:                    
+                    myvals_full = mydb[quantity]
+
+                    
+                myvals = myvals_full.value
+                if myvals_full.unit is not None:
+                    myresults[quantity]['unit'] = myvals_full.unit.to_string()
+
+                # if this is the first file. set up bins and dist counts arrays
+                if i == 0:
+                    counts, bins, patches = plt.hist(np.log10(myvals),bins=nbins,cumulative=-1,density=True,log=True,
+                                                     weights=mydb['weights_all'])
+                        
+                    myresults[quantity]['bins'] = bins
+                    myresults[quantity]['dist_counts'] = np.empty((len(sample_list),len(counts)))
+                    myresults[quantity]['dist_counts'][i,:] = counts
+                    
+                # otherwise, just make histogram
+                else:
+                    counts, bins, patches = plt.hist(np.log10(myvals),bins=myresults[quantity]['bins'],cumulative=-1,density=True,log=True,
+                                                     weights=mydb['weights_all'])
+                    myresults[quantity]['dist_counts'][i,:] = counts
+
+
+                ## Getting the regular histogram information
+                ##----------------------------------------------
+                if quantity in ['wsu_datarate_early_stepped2_typical',
+                                'wsu_datarate_later_4x_stepped2_typical']:
+                    if quantity not in myresults_hist.keys():
+                        myresults_hist[quantity] = {}
+                        myresults_hist[quantity]['unit'] = myresults[quantity]['unit'] # copy unit over from other database
+
+                    if i == 0:
+                        counts_hist, bins_hist, patches_hist = plt.hist(myvals,bins=nbins,log=False,weights=mydb['weights_all'])
+                        
+                        myresults_hist[quantity]['bins'] = bins_hist
+                        myresults_hist[quantity]['hist_counts'] = np.empty((len(sample_list),len(counts_hist)))
+                        myresults_hist[quantity]['hist_counts'][i,:] = counts_hist
+
+                    else:
+                        counts_hist, bins_hist, patches_hist = plt.hist(myvals,bins=myresults_hist[quantity]['bins'],
+                                                                        log=False,weights=mydb['weights_all'])
+                        myresults_hist[quantity]['hist_counts'][i,:] = counts_hist
+
+                
+                
+
+    for quantity in myresults.keys():
+        # save cumulative histogram results to dictionary
+        median_val = np.median(myresults[quantity]['dist_counts'],axis=0)
+        max_val = np.max(myresults[quantity]['dist_counts'],axis=0)
+        min_val = np.min(myresults[quantity]['dist_counts'],axis=0)
+        
+        myresults[quantity]['median'] = median_val
+        myresults[quantity]['min'] = min_val
+        myresults[quantity]['max'] = max_val
+    
+
+    for quantity in myresults_hist.keys():
+        # save regular histogram results to dictionary
+        median_val_hist = np.median(myresults_hist[quantity]['hist_counts'],axis=0)
+        max_val_hist = np.max(myresults_hist[quantity]['hist_counts'],axis=0)
+        min_val_hist = np.min(myresults_hist[quantity]['hist_counts'],axis=0)
+    
+        myresults_hist[quantity]['median'] = median_val_hist
+        myresults_hist[quantity]['min'] = min_val_hist
+        myresults_hist[quantity]['max'] = max_val_hist
+
+    
+    # combine individual dictionaries into one results object.
+    myresults_all['hist_cumulative'] = myresults
+    myresults_all['hist'] = myresults_hist
+
+    return myresults_all
+
+
+
+def calc_wsu_stats_allsamples(outDir='data/sample_band1_band2',
+                              filename='wsu_datarates_mit_per_mous_band12_20231002'):
+    '''
+    Purpose: calcuate the statistics over all the realizations of the WSU
+    distribution with Bands 1 and 2. 
+
+    Input: mydb
+
+    Outputs: dictionary with summary statistics
+
+    Method: I'm separating out from above where I calculate the distribution
+    to get things to run faster.
+    
+    
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------
+    10/30/2023  A.A. Kepley     Original Code
+    
+    '''
+
+    import glob
+    import os
+    import re
+    
+    sample_list = glob.glob(os.path.join(outDir,filename+"_*.ecsv"))
+
+    quantity_list = ['blc_nchan_agg',
+                     'blc_cubesize',
+                     'blc_productsize',
+                     'blc_datarate_typical',
+                     'blc_datavol_typical_target_tot',
+                     'blc_datavol_typical_cal',
+                     'blc_datavol_typical_total',                    
+                     'wsu_nchan_agg_stepped2_early',
+                     'wsu_nchan_agg_stepped2_later_4x',                     
+                     'wsu_cubesize_stepped2',
+                     'wsu_productsize_early_stepped2',                                  
+                     'wsu_datarate_early_stepped2_typical', # typical number of antennas
+                     'wsu_datavol_early_stepped2_typical_target_tot',
+                     'wsu_datavol_early_stepped2_typical_cal',
+                     'wsu_datavol_early_stepped2_typical_total',
+                     #'wsu_nvis_early_stepped2_typical_target_tot',
+                     #'wsu_nvis_early_stepped2_typical_cal',
+                     #'wsu_nvis_early_stepped2_typical_total',
+                     #'wsu_productsize_later_2x_stepped2',                                  
+                     #'wsu_datarate_later_2x_stepped2_typical',
+                     #'wsu_visrate_later_2x_stepped2_typical',                                  
+                     #'wsu_datavol_later_2x_stepped2_typical_target_tot',
+                     #'wsu_datavol_later_2x_stepped2_typical_cal',
+                     #'wsu_datavol_later_2x_stepped2_typical_total',
+                     #'wsu_nvis_later_2x_stepped2_typical_target_tot',
+                     #'wsu_nvis_later_2x_stepped2_typical_cal',
+                     #'wsu_nvis_later_2x_stepped2_typical_total',
+                     'wsu_productsize_later_4x_stepped2',                                  
+                     'wsu_datarate_later_4x_stepped2_typical',
+                     'wsu_datavol_later_4x_stepped2_typical_target_tot',
+                     'wsu_datavol_later_4x_stepped2_typical_cal',
+                     'wsu_datavol_later_4x_stepped2_typical_total',
+                     #'wsu_nvis_later_4x_stepped2_typical_target_tot',
+                     #'wsu_nvis_later_4x_stepped2_typical_cal',
+                     #'wsu_nvis_later_4x_stepped2_typical_total',                     
+                     #'wsu_datarate_early_stepped2_array', ## peak number of antenna (total array)
+                     #'wsu_visrate_early_stepped2_array',                                  
+                     #'wsu_datavol_early_stepped2_array_target_tot',
+                     #'wsu_datavol_early_stepped2_array_cal',
+                     #'wsu_datavol_early_stepped2_array_total',
+                     #'wsu_nvis_early_stepped2_array_target_tot',
+                     #'wsu_nvis_early_stepped2_array_cal',
+                     #'wsu_nvis_early_stepped2_array_total',
+                     #'wsu_productsize_later_2x_stepped2',                                  
+                     #'wsu_datarate_later_2x_stepped2_array',
+                     #'wsu_visrate_later_2x_stepped2_array',                                  
+                     #'wsu_datavol_later_2x_stepped2_array_target_tot',
+                     #'wsu_datavol_later_2x_stepped2_array_cal',
+                     #'wsu_datavol_later_2x_stepped2_array_total',
+                     #'wsu_nvis_later_2x_stepped2_array_target_tot',
+                     #'wsu_nvis_later_2x_stepped2_array_cal',
+                     #'wsu_nvis_later_2x_stepped2_array_total',
+                     'wsu_productsize_later_4x_stepped2',                                  
+                     #'wsu_datarate_later_4x_stepped2_array',
+                     #'wsu_visrate_later_4x_stepped2_array',                                  
+                     #'wsu_datavol_later_4x_stepped2_array_target_tot',
+                     #'wsu_datavol_later_4x_stepped2_array_cal',
+                     #'wsu_datavol_later_4x_stepped2_array_total',
+                     #'wsu_nvis_later_4x_stepped2_array_target_tot',
+                     #'wsu_nvis_later_4x_stepped2_array_cal',
+                     #'wsu_nvis_later_4x_stepped2_array_total',
+                     #'blc_sysperf_typical_allgrid',
+                     #'flops_per_vis_allgrid',
+                     #'wsu_sysperf_early_stepped2_typical_allgrid',
+                     #'wsu_sysperf_later_2x_stepped2_typical_allgrid',
+                     #'wsu_sysperf_later_4x_stepped2_typical_allgrid',
+                     'blc_sysperf_typical_aprojonly',
+                     #'flops_per_vis_aprojonly',
+                     'wsu_sysperf_early_stepped2_typical_aprojonly',
+                     'wsu_sysperf_later_2x_stepped2_typical_aprojonly',
+                     'wsu_sysperf_later_4x_stepped2_typical_aprojonly']
+
+
+    myresults_stats = {}
+
+    for i in np.arange(len(sample_list)):
+        mydb = Table.read(sample_list[i])        
+
+        # get column information
+        if i == 0:        
+            mycolumns = mydb.columns        
+            
+        for quantity in mycolumns:
+            if quantity in quantity_list:
+            
+                ## Getting stats
+                ### -------------
+
+                # create dictionary
+                if quantity not in myresults_stats.keys():
+                    myresults_stats[quantity] = {}
+
+                # initialize dictionary
+                if i == 0:
+
+                    if (re.search("productsize",quantity) or re.search("datavol",quantity)):
+                        myresults_stats[quantity]['unit'] = 'TB'
+                    elif mydb[quantity].unit is not None:
+                        myresults_stats[quantity]['unit'] = mydb[quantity].unit.to_string()
+
+                    for myarray in ['12m','7m','both']:
+                        myresults_stats[quantity][myarray] = {}
+                
+                        for mykey in ['mean_arr','wavg_arr','median_arr','max_arr']:
+                            myresults_stats[quantity][myarray][mykey] = np.empty(len(sample_list))
+
+                        # also get totals for productsize and data vol
+                        if (re.search("productsize",quantity) or re.search("datavol",quantity)):
+                            myresults_stats[quantity][myarray]['total_arr'] = np.empty(len(sample_list))
+
+                # fill dictionary
+                for myarray in ['both','12m','7m']:
+                    if myarray == 'both':
+                        idx = (mydb['array'] == '12m') | (mydb['array'] == '7m')
+                    else:
+                        idx = mydb['array'] == myarray
+
+
+                    if (re.search("productsize",quantity) or re.search("datavol",quantity)):
+                        
+                        myresults_stats[quantity][myarray]['mean_arr'][i] = np.nanmean(mydb[quantity][idx].to('TB').value)
+                        myresults_stats[quantity][myarray]['wavg_arr'][i] = np.average(mydb[quantity][idx].to('TB').value,weights=mydb[idx]['weights_all'])
+                        myresults_stats[quantity][myarray]['median_arr'][i] = np.nanmedian(mydb[quantity][idx].to('TB').value)
+                        myresults_stats[quantity][myarray]['max_arr'][i] = np.nanmax(mydb[quantity][idx].to('TB').value)
+
+                        if 'total_arr' in myresults_stats[quantity][myarray].keys():
+                            myresults_stats[quantity][myarray]['total_arr'][i] = np.nansum(mydb[quantity][idx].to('TB').value)
+
+                    else:
+                        myresults_stats[quantity][myarray]['mean_arr'][i] = np.nanmean(mydb[quantity][idx])
+                        myresults_stats[quantity][myarray]['wavg_arr'][i] = np.average(mydb[quantity][idx],weights=mydb[idx]['weights_all'])
+                        myresults_stats[quantity][myarray]['median_arr'][i] = np.nanmedian(mydb[quantity][idx])
+                        myresults_stats[quantity][myarray]['max_arr'][i] = np.nanmax(mydb[quantity][idx])
+
+                        if 'total_arr' in myresults_stats[quantity][myarray].keys():
+                            myresults_stats[quantity][myarray]['total_arr'][i] = np.nansum(mydb[quantity][idx])
+
+    # calculate the overall instances
+    for quantity in myresults_stats.keys():
+
+        for myarray in ['12m','7m','both']:
+            
+
+            myresults_stats[quantity][myarray]['mean_mean'] = np.mean(myresults_stats[quantity][myarray]['mean_arr'])
+            myresults_stats[quantity][myarray]['mean_std'] = np.std(myresults_stats[quantity][myarray]['mean_arr'])
+            
+            myresults_stats[quantity][myarray]['wavg_mean'] = np.mean(myresults_stats[quantity][myarray]['wavg_arr'])
+            myresults_stats[quantity][myarray]['wavg_std'] = np.std(myresults_stats[quantity][myarray]['wavg_arr'])
+    
+            myresults_stats[quantity][myarray]['median_mean'] = np.mean(myresults_stats[quantity][myarray]['median_arr'])
+            myresults_stats[quantity][myarray]['median_std'] = np.std(myresults_stats[quantity][myarray]['median_arr'])
+            
+            myresults_stats[quantity][myarray]['max_mean'] = np.mean(myresults_stats[quantity][myarray]['max_arr'])
+            myresults_stats[quantity][myarray]['max_std'] = np.std(myresults_stats[quantity][myarray]['max_arr'])
+            
+            if 'total_arr' in myresults_stats[quantity][myarray].keys():
+                myresults_stats[quantity][myarray]['total_mean'] = np.mean(myresults_stats[quantity][myarray]['total_arr'])
+                myresults_stats[quantity][myarray]['total_std'] = np.std(myresults_stats[quantity][myarray]['total_arr'])
+            
+
+    return myresults_stats
+                
+
+def calc_sysperf(mydb,
+                 mosaic_aproject=True,
+                 wproject=True,
+                 label='allgrid',
+                 multiscale_factor = 1.2, # default for ngVLA SoC
+                 core_efficiency = 0.05, # core_efficiency; value from ngVLA SoC -- measured number
+                 parallelization_efficiency = 0.8, # parallelization_efficiency; value from ngVLA SoC -- assumption
+                 k = 20 # total number of major cycles over all re-runs; my standard value
+                 ):
+    '''
+    Purpose: calculate the fraction of time spent for each MOUS and the required system performance
+
+    Inputs: mydb
+
+    Output: mydb with fractions and estimates of the required system performance
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    2/27/2023   A.A. Kepley     Original Code
+    3/21/2023   A.A. Kepley     updated to do actual calculation rather than scale
+    10/25/2023  A.A. Kepley     Updated to treat mosaics as a-project
+    '''
+
+
+    # flops/vis for standard convolution kernel 
+    flops_per_vis_std = 1280.8  # from ngVLA SoC
+    flops_per_vis_aproj = 7472.8  # from ngVLA SoC
+    flops_per_vis_wproj = 21768.4 # from ngVLA SoC
+    flops_per_vis_awproj = 39704.8 # from ngVLA SoC
+    
+    flops_per_vis_arr = np.full(len(mydb), flops_per_vis_std)    
+
+    if mosaic_aproject and wproject:
+
+        # if mosaic, use aproject value - most values
+        idx = (mydb['mosaic'] == 'T')
+        flops_per_vis_arr[idx] = np.full(len(mydb[idx]),flops_per_vis_aproj)
+
+        # if band 1 and long baseline use wproject ## 2nd most values
+        idx = (mydb['band'] == 1 ) & (mydb['L80'].value > 6200.0)
+        flops_per_vis_arr[idx] = np.full(len(mydb[idx]),flops_per_vis_wproj)
+        
+        # if mosaic and in band 1 at configurations greater than C43-9 (L80 ~ 6400), use aw- project -- 3 most values
+        idx = (mydb['mosaic'] == 'T') & (mydb['band'] == 1 ) & (mydb['L80'].value > 6200.0) # L80 in m
+        flops_per_vis_arr[idx] = np.full(len(mydb[idx]),flops_per_vis_awproj)
+
+
+    elif mosaic_aproject and not wproject:
+        
+        # if mosaic, use aproject value
+        idx = (mydb['mosaic'] == 'T')
+        flops_per_vis_arr[idx] = np.full(len(mydb[idx]),flops_per_vis_aproj)
+
+
+    elif not mosaic_aproject and wproject:
+
+        # if band 1 and long baseline use wproject
+        idx = (mydb['band'] == 1 ) & (mydb['L80'].value > 6200.0) # L80 in m
+        flops_per_vis_arr[idx] = np.full(len(mydb[idx]),flops_per_vis_wproj)
+
+    else:
+        print("not applying aproject or wproject")
+        
+    # multi-scale factor
+    multiscale_factor_arr = np.full(len(mydb), multiscale_factor) # ngVLA SoC uses 1.2
+    
+    # nterms factor = 1 because we are doing cubes
+    nterms_factor_arr = np.ones(len(mydb))                
+    
+    # calculate system performance
+    visrate_list = ['blc_visrate_typical',
+                    'wsu_visrate_early_stepped2_typical',
+                    'wsu_visrate_later_2x_stepped2_typical',
+                    'wsu_visrate_later_4x_stepped2_typical']
+    
+    for visrate in visrate_list :
+
+        sysperf = (mydb[visrate].value * 1e9 / 3600.0 ) *  \
+            flops_per_vis_arr * k * \
+            multiscale_factor_arr * nterms_factor_arr / \
+            (core_efficiency * parallelization_efficiency)
+        
+        outname = visrate.replace('visrate','sysperf') + '_'+label
+        mydb[outname]  = sysperf / 1e15 # convert to PFLOPS
+        mydb['flops_per_vis_'+label] = flops_per_vis_arr # save the flops per vis
