@@ -521,6 +521,361 @@ def create_database(cycle7tab):
     return if_mous_tab
 
 
+def create_tp_database(cycle7tab):
+    '''
+    Purpose: create database of parameters for WSU data rate estimate for
+    total power data. Requested by Bunyo
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    11/20/2023  A.A. Kepley     Original Code
+    '''
+
+    # get MOUS list
+    mousList = np.unique(cycle7tab['member_ous_uid'])
+     
+    # setup variables to hold values.
+    #-----------------
+
+    ## NOTE TO SELF: dictionary probably would have been better strategy here.
+    
+    # overall info
+    if_mous_list = []
+    proposal_id_list = []
+    schedblock_name_list = []
+    array_list = []
+    science_keyword_list = []
+    scientific_category_list = []
+
+    # basic observing info
+    ntarget_list = []
+    target_name_list = []
+    npol_list = []
+    band_list_array = []
+
+    # image info
+    s_fov_list = []
+    s_resolution_list = []
+    mosaic_list = []
+    pb_list = []
+    imsize_list = []
+    cell_list = []
+
+    # blc info
+    blc_specwidth = []
+    blc_freq = []
+    blc_nchan_agg = []
+    blc_nchan_max = []
+    blc_nspw = []
+    blc_bw_agg = []
+    blc_bw_max = []
+    blc_vel_res = []
+
+    # WSU info
+    wsu_npol_list = []
+    wsu_bandwidth_later_4x = []
+    wsu_bandwidth_early = []
+    wsu_bandwidth_spw = []
+
+    wsu_nspw_early = []
+    wsu_nspw_later_4x = []
+
+    wsu_freq_list = []
+
+    wsu_specwidth_stepped2 = []
+    wsu_chanavg_stepped2 = []
+    wsu_velres_stepped2 = []
+
+    # fill in values
+    for mymous in mousList:
+        idx_mous = cycle7tab['member_ous_uid'] == mymous
+
+        array = np.unique(cycle7tab[idx_mous]['array'])
+
+        # skip 12m and 7m
+        if array != 'TP':
+            continue
+
+        # Otherwise continue
+        if len(array) > 1:
+            print("more than one array found for " + mymous)
+
+        # get number of targets and names
+        mytargets = np.unique(cycle7tab[idx_mous]['target_name'])
+        ntarget = np.unique(cycle7tab[idx_mous]['ntarget'])
+
+        # loop over targets and extract info
+        for target_name in mytargets:
+            idx = (cycle7tab['member_ous_uid'] == mymous) & (cycle7tab['target_name'] == target_name)
+            
+            # MOUS
+            if_mous_list.append(mymous)
+            
+            # targetname
+            target_name_list.append(target_name)
+            
+            # n targets
+            ntarget_list.append(ntarget)
+            
+            # proposal id 
+            proposal_id = np.unique(cycle7tab[idx]['proposal_id'])
+            proposal_id_list.append(proposal_id)
+
+            # scheduling block info
+            schedblock_name = np.unique(cycle7tab[idx]['schedblock_name'])
+            schedblock_name_list.append(schedblock_name)
+            
+            # array info 
+            array_list.append(array)
+
+            # science keyword info
+            ## These are the keywords selected by the PI
+            science_keyword = np.unique(cycle7tab[idx]['science_keyword'])
+            science_keyword_list.append(science_keyword)
+
+            # scientific category
+            ## These do not correspond to the 5 science categories exactly.
+            ## Categories 1 (Cosmology and the high redshift universe) and 2 (galaxies and galactic nuclei)
+            ## are separated depending on input keyword. I think I should be able to map to the
+            ## five "official" categories based on the keywords.
+            scientific_category = np.unique(cycle7tab[idx]['scientific_category'])
+            scientific_category_list.append(scientific_category)
+
+            # FOV
+            s_fov = np.mean(cycle7tab[idx]['s_fov']) 
+            s_fov_list.append(s_fov)
+            
+            # Resolution
+            s_resolution = np.mean(cycle7tab[idx]['s_resolution'])
+            s_resolution_list.append(s_resolution)
+            
+            # mosaic
+            mosaic = np.unique(cycle7tab[idx]['is_mosaic'])
+            if len(mosaic) > 1:
+                print("mosaic and single pointings in same MOUS " + mymous + ". Setting mosaic to True")
+                mosaic = 'T'
+            mosaic_list.append(mosaic)
+            
+            # imsize
+            imsize = np.mean(cycle7tab[idx]['imsize'])
+            imsize_list.append(imsize)
+            
+            # pb
+            pb = np.mean(cycle7tab[idx]['pb'])
+            pb_list.append(pb)
+            
+            # cell
+            cell = np.mean(cycle7tab[idx]['cell'])
+            cell_list.append(cell)
+            
+            # BLC info
+            # ---------
+
+            # polarization states
+            pol_states = np.unique(cycle7tab[idx]['pol_states'])
+            if len(pol_states) > 1:
+                print("print multiple polarization setups in same MOUS " + mymous)
+            npol = len(pol_states.data[0].split('/')[1:-1])
+            npol_list.append(npol)
+            
+            specwidth_finest = min(cycle7tab[idx]['spw_specwidth']) #kHz
+            blc_specwidth.append(specwidth_finest)
+
+            freq = np.mean(cycle7tab[idx]['spw_freq']) #GHz
+            blc_freq.append(freq) 
+            
+            vel_res =  min(((cycle7tab[idx]['spw_specwidth']*1e3) / (cycle7tab[idx]['spw_freq']*1e9)) * const.c.to('km/s')).value #km/s
+            blc_vel_res.append(vel_res)
+
+            nchan_agg = sum(cycle7tab[idx]['spw_nchan'])
+            blc_nchan_agg.append(nchan_agg)
+            
+            nchan_max = max(cycle7tab[idx]['spw_nchan'])
+            blc_nchan_max.append(nchan_max)
+                        
+            nspw = len(cycle7tab[idx])
+            blc_nspw.append(nspw)
+            
+            # get maximum spectral window
+            bw_max = max(cycle7tab[idx]['bandwidth'])/1e9 #bandwidth in Hz
+            blc_bw_max.append(bw_max)
+
+            # total aggregate bandwidth -- does NOT account for overlapping windows
+            bw_agg = np.sum(cycle7tab[idx]['bandwidth'])/1e9 # bandwidth in Hz 
+            blc_bw_agg.append(bw_agg)
+
+
+            # WSU Frequency
+            # -------------
+
+            # Assuming WSU center frequency is the same as the BLC center frequency
+            wsu_freq_list.append(freq)
+
+            # WSU polarization
+            # ----------------
+
+            # assuming all single pol will switch to dual pol
+            ## TODO -- check this assumption with Crystal.
+            if npol == 1:
+                wsu_npol = 2
+            else:
+                wsu_npol = npol
+            wsu_npol_list.append(wsu_npol)
+
+            # WSU spectral resolution
+            # -----------------------------
+
+            ## stepped -- 5 steps
+            # finer coverage around 1km/s. At band 6 projects often are slightly over 1 km/s to get full bandwidth.
+            if vel_res > 10.0 :
+                vel_res_tmp = 10.0 # km/s
+            elif vel_res > 2.0 :
+                vel_res_tmp = 2.0 # km/s
+            elif vel_res > 0.5:
+                vel_res_tmp = 0.5 # km/s
+            elif vel_res > 0.1:
+                vel_res_tmp = 0.1 # km/s
+            else:
+                #vel_res_tmp = 0.1
+                vel_res_tmp = vel_res
+                
+            specwidth_tmp = (vel_res_tmp / const.c.to('km/s').value) * np.mean(cycle7tab[idx]['spw_freq']*1e9)/1e3 #kHz
+            (specwidth_stepped2_talon,chanavg_stepped2_talon) = calc_talon_specwidth(specwidth_tmp)
+            wsu_specwidth_stepped2.append(specwidth_stepped2_talon)
+            wsu_chanavg_stepped2.append(chanavg_stepped2_talon) 
+
+            velres_stepped2_tmp = (specwidth_stepped2_talon * 1e3 / (freq*1e9)) * const.c.to('km/s').value
+            wsu_velres_stepped2.append(velres_stepped2_tmp)
+
+            # WSU BW
+            # ------------
+
+            # get band information
+            band_list = np.unique(cycle7tab[idx]['band_list'])
+            if len(band_list) > 1:
+                print("multiple bands in same MOUS " + mymous)
+            band_list_array.append(band_list) ## is append going to cause problems here
+            
+
+            #spw_bw = 1.6 # GHz             # based on 1st F at antenna
+            spw_bw = 2.0 # GHz          # The 1st F is no more, so moving to 2 GHz.
+            wsu_bandwidth_spw.append(spw_bw)
+
+            # but at beginning only band 6 and band 2 will be upgraded. Band 2 is under dev now, so no band 2 in cycle 7.
+            if band_list == 6:
+                bw = 16.0
+            elif band_list == 3: ## Looks like upper end of band 2 will be competitive with current band 3 so assuming that band 3 -> upper band 2
+                bw = 16.0
+            #elif (band_list >= 3) & (band_list <= 7) :
+            elif (band_list >= 4) & (band_list <= 7) : ## Band 3 -> upper band 2
+                bw = 8.0
+            # adding band 8 to early WSU
+            elif (band_list >= 8 & band_list <= 10): 
+            #elif (band_list >= 9 & band_list <= 10):
+                bw = 16.0
+            else:
+                print('Band not recognized for MOUS: ' + mymous)
+                
+            wsu_bandwidth_early.append(bw)
+            wsu_nspw_early.append(round(bw/spw_bw))
+            
+            # 4x BW -- assumes band 1 won't be upgraded to 4x.
+            if band_list == 1:
+                bw = 16.0 # GHz
+            else:
+                bw = 32.0 # GHz
+            wsu_bandwidth_later_4x.append(bw)
+            wsu_nspw_later_4x.append(round(bw/spw_bw))                
+
+    # put appropriate units on quantities.
+    pb_list = np.array(pb_list) * u.arcsec
+    cell_list = np.array(cell_list) * u.arcsec
+    
+    s_fov_list = np.array(s_fov_list) * u.deg
+    s_resolution_list = np.array(s_resolution_list) * u.arcsec
+
+    blc_specwidth = np.array(blc_specwidth) * u.kHz
+    blc_freq = np.array(blc_freq) * u.GHz
+    blc_vel_res = np.array(blc_vel_res) * u.km / u.s
+    blc_nchan_agg = np.array(blc_nchan_agg)
+    blc_nchan_max = np.array(blc_nchan_max)
+    blc_bw_max = np.array(blc_bw_max) * u.GHz
+    blc_bw_agg = np.array(blc_bw_agg) * u.GHz
+    blc_nspw = np.array(blc_nspw)
+    
+    wsu_bandwidth_early = np.array(wsu_bandwidth_early) * u.GHz
+    wsu_bandwidth_later_4x = np.array(wsu_bandwidth_later_4x) * u.GHz
+    wsu_bandwidth_spw = np.array(wsu_bandwidth_spw) * u.GHz
+
+    wsu_specwidth_stepped2 = np.array(wsu_specwidth_stepped2) * u.kHz
+
+    wsu_velres_stepped2 = np.array(wsu_velres_stepped2) * u.km / u.s
+    
+    wsu_freq_list = np.array(wsu_freq_list) * u.GHz
+
+    # put together table
+    if_mous_tab = QTable([np.squeeze(if_mous_list), np.squeeze(proposal_id_list), np.squeeze(schedblock_name_list),np.squeeze(array_list), 
+                          np.squeeze(science_keyword_list), np.squeeze(scientific_category_list),
+
+                          np.squeeze(band_list_array), np.squeeze(ntarget_list), np.squeeze(target_name_list),
+                          np.squeeze(s_fov_list), np.squeeze(s_resolution_list), np.squeeze(mosaic_list),
+                          np.squeeze(imsize_list), np.squeeze(pb_list), np.squeeze(cell_list),
+                          np.squeeze(npol_list),np.squeeze(blc_nspw),
+                          np.squeeze(blc_specwidth),np.squeeze(blc_freq), np.squeeze(blc_vel_res),
+                          np.squeeze(blc_nchan_agg),np.squeeze(blc_nchan_max),np.squeeze(blc_bw_max),np.squeeze(blc_bw_agg),
+                          np.squeeze(wsu_freq_list),np.squeeze(wsu_npol_list),
+                          np.squeeze(wsu_bandwidth_early), np.squeeze(wsu_bandwidth_later_4x), np.squeeze(wsu_bandwidth_spw), 
+                          np.squeeze(wsu_nspw_early), np.squeeze(wsu_nspw_later_4x),
+                          np.squeeze(wsu_specwidth_stepped2), np.squeeze(wsu_chanavg_stepped2), np.squeeze(wsu_velres_stepped2)],
+                         names=('mous','proposal_id','schedblock_name','array',
+                                'science_keyword','scientific_category',
+                                'band','ntarget','target_name',
+                                's_fov','s_resolution','mosaic',
+                                'imsize','pb','cell',
+                                'blc_npol','blc_nspw',
+                                'blc_specwidth','blc_freq','blc_velres',
+                                'blc_nchan_agg','blc_nchan_max','blc_bandwidth_max','blc_bandwidth_agg',
+                                'wsu_freq','wsu_npol',
+                                'wsu_bandwidth_early','wsu_bandwidth_later_4x','wsu_bandwidth_spw',
+                                'wsu_nspw_early', 'wsu_nspw_later_4x',
+                                'wsu_specwidth_stepped2','wsu_chanavg_stepped2','wsu_velres_stepped2'))                              
+    
+
+    # calculate number of channels per spw
+    # ------------------------------------
+        
+    # figure out max allowed channels for 1.6 GHz spw
+    #nchan_max_talon_spw = 14880 * 8 # for 1.6 GHz spw with 8 FS
+    nchan_max_talon_spw = 14880 * 10 # for 2.0 GHz spw with 10 FS
+    nchan_max_spw_stepped2 = np.floor(nchan_max_talon_spw / if_mous_tab['wsu_chanavg_stepped2']) # max channels if averaged
+    
+    # calculate nchan for spw and stepped2 channels
+    if_mous_tab['wsu_nchan_spw_stepped2'] = np.floor((if_mous_tab['wsu_bandwidth_spw']/if_mous_tab['wsu_specwidth_stepped2']).decompose())
+    idx = if_mous_tab['wsu_nchan_spw_stepped2'] > nchan_max_spw_stepped2 
+    if np.sum(idx) > 0:
+        print("SPW BW, stepped2: Adjusting number of channels to meet TALON max: " + str(np.sum(idx)))
+        #ipdb.set_trace()
+        if_mous_tab['wsu_nchan_spw_stepped2'][idx] = nchan_max_spw_stepped2[idx] 
+
+
+    ## Calculate the aggregate number of channels
+    ## ------------------------------------------
+    #for veltype in ['finest','stepped','stepped2']:
+    for veltype in ['stepped2']:
+        if_mous_tab['wsu_nchan_agg_'+veltype+'_early'] = if_mous_tab['wsu_nchan_spw_'+veltype] * if_mous_tab['wsu_nspw_early']
+        if_mous_tab['wsu_nchan_agg_'+veltype+'_later_4x'] = if_mous_tab['wsu_nchan_spw_'+veltype] * if_mous_tab['wsu_nspw_later_4x']
+        
+    # fractional bandwidth
+    # ---------------------
+    
+    if_mous_tab['wsu_frac_bw_early'] = if_mous_tab['wsu_bandwidth_early']/if_mous_tab['wsu_freq']
+    if_mous_tab['wsu_frac_bw_later_4x'] = if_mous_tab['wsu_bandwidth_later_4x']/if_mous_tab['wsu_freq']
+    if_mous_tab['wsu_frac_bw_spw'] = if_mous_tab['wsu_bandwidth_spw']/if_mous_tab['wsu_freq']
+    
+
+    return if_mous_tab
+
+    
 def add_blc_ntunings(orig_db, ntunings_file):
     '''
     Purpose: add number of BLC tunings to data base
@@ -547,6 +902,7 @@ def add_blc_ntunings(orig_db, ntunings_file):
     if not match:
         print('No matches found. Are you using the right file')
         
+
         
 def add_l80(orig_db,l80_file=None):
     '''
@@ -937,6 +1293,85 @@ def create_per_mous_db(mydb):
     # recalculate target total
             
     return mous_db
+
+def aggregate_tdump_db(mydb):
+    '''
+    Purpose: aggregate the tdump time db for Bunyo
+
+    Input: original data base
+
+    Output: data base with aggregated quantities.
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    11/21/2023  A.A. Kepley     Original Code
+
+    '''
+
+    from statistics import mode
+    import re
+
+    # get groups
+    mydb_by_sb = mydb.group_by(['PRJ_CODE','SB_NAME'])
+
+    # set list of keys I want
+    keylist = ['PRJ_CODE','SB_NAME','CYCLE',
+               'ESTIMATED_EXECUTION_TIME_PRJ','ESTIMATED_EXECUTION_TIME_PRJ_UNIT',
+               'ACASPEC_INTEGRATION_DURATION','EXECOUNT','N_TDUMP']    
+
+    # create output dictionary. only need some keys
+    newdb_dict = {}
+    for mykey in keylist:        
+        newdb_dict[mykey] = []
+
+    for mygroup in mydb_by_sb.groups:
+        for mykey in keylist:
+            if (mykey in ['SB_NAME','CYCLE',
+                          'ESTIMATED_EXECUTION_TIME_PRJ',
+                          'ESTIMATED_EXECUTION_TIME_PRJ_UNIT',
+                          'EXECOUNT',
+                          'PRJ_CODE']):
+
+                myval = np.unique(mygroup[mykey])
+
+                if len(myval) > 1:
+                    print('multiple values')
+                    print(mykey, myval)
+
+                # take first value
+                # but also need to get 0th element
+                # in case of single value.
+                myval = myval[0]
+
+                # add to dictionary
+                newdb_dict[mykey].append(myval)
+
+                
+            elif mykey in ['ACASPEC_INTEGRATION_DURATION']:
+                myval = np.unique(mygroup[mykey])
+                
+                # note how many dump times
+                newdb_dict['N_TDUMP'].append(len(myval))
+
+                # the below is a bit hacky but seems to work.
+                idx = myval > 100
+                myval[idx] = myval[idx]/1000.0 # convert 144 ms to s
+
+                # take the minimum integration time.
+                # might want to change to the max
+                myval = np.min(myval)
+
+                # add to dictionary
+                newdb_dict[mykey].append(myval)
+
+    
+    sb_db = QTable(newdb_dict)
+
+    sb_db.rename_column('PRJ_CODE','proposal_id')
+    sb_db.rename_column('SB_NAME','schedblock_name')
+
+    return sb_db
+                
 
 
 def apply_mitigations(mydb,
