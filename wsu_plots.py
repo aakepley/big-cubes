@@ -625,9 +625,11 @@ def make_freq_vs_fracbw(result,
 # ---------------------
         
 def make_velocity_bar(result,
+                      band_label = 'band_list',
                       vel_label = 'velocity_resolution',
                       vel_breakpoints = [0.1,0.5,2,10],
                       band_list=[3,4,5,6,7,8,9,10],
+                      ytitle=None,
                       title=None,
                       pltname=None):
     '''
@@ -647,19 +649,20 @@ def make_velocity_bar(result,
     count_arr = np.zeros((nbands, nbins))
     label_arr = np.zeros((nbands, nbins),dtype=object)
 
+
     for k in range(nbands):
-        idx = (result[vel_label] < vel_breakpoints[0]) & (result['band_list'] == band_list[k])
+        idx = (result[vel_label].value < vel_breakpoints[0]) & (result[band_label] == band_list[k])
         count_arr[k, 0] = len(result[idx])
         label_arr[k, 0] = "< {:4.2f} km/s".format(vel_breakpoints[0])
 
         #ipdb.set_trace()
         for i in np.arange(0,nbins-2):
-            idx = (result[vel_label] >= vel_breakpoints[i]) & (result[vel_label] < vel_breakpoints[i+1]) & (result['band_list'] == band_list[k])
+            idx = (result[vel_label].value >= vel_breakpoints[i]) & (result[vel_label].value < vel_breakpoints[i+1]) & (result[band_label] == band_list[k])
             count_arr[k,i+1] = len(result[idx])
             label_arr[k,i+1] = "{:4.2f} - \n {:4.2f} km/s".format(vel_breakpoints[i], vel_breakpoints[i+1])
             #ipdb.set_trace()
             
-        count_arr[k, -1] = len(result[((result[vel_label] >= vel_breakpoints[-1]) & (result['band_list'] == band_list[k]) )])
+        count_arr[k, -1] = len(result[((result[vel_label].value >= vel_breakpoints[-1]) & (result[band_label] == band_list[k]) )])
         label_arr[k, -1] = ">= {:4.2f} km/s".format(vel_breakpoints[-1])
         #ipdb.set_trace()
         
@@ -684,8 +687,11 @@ def make_velocity_bar(result,
 
 
     ax.tick_params(axis='y',labelsize=14)
-    ax.set_ylabel('Fraction of Total SPWs',size=16)
-
+    if ytitle is None:
+        ax.set_ylabel('Fraction of Total SPWs',size=16)
+    else:
+        ax.set_ylabel(ytitle,size=16)
+        
     ax.legend()
     
     if title:
@@ -1387,7 +1393,8 @@ def plot_spw_hist_all(mydb,
                       bin_max=-1,
                       nbin=10,
                       title='',
-                      pltname=None):
+                      pltname=None,
+                      ylog=False):
     '''
     Purpose: plot the distribution of the number of spectral windows for all
     WSU stages at one time
@@ -1416,7 +1423,8 @@ def plot_spw_hist_all(mydb,
              align='left',
              alpha=0.2,
              histtype='bar',
-             weights=mydb['weights_all'])
+             weights=mydb['weights_all'],
+             log=ylog)
     
     ax1.hist(mydb['blc_nspw']/mydb['blc_ntunings'],
              bins=mybins,
@@ -1426,7 +1434,7 @@ def plot_spw_hist_all(mydb,
              histtype='step',
              edgecolor=mycolors['blc'],
              weights=mydb['weights_all'],
-             label='BLC/ACA')
+             label='BLC/ACA',log=ylog)
 
     
     ax1. hist(mydb['wsu_nspw_early'],
@@ -1434,7 +1442,7 @@ def plot_spw_hist_all(mydb,
               color=mycolors['early'],
               align='left',
               alpha=0.2,
-              weights=mydb['weights_all'])
+              weights=mydb['weights_all'],log=ylog)
 
 
     ax1. hist(mydb['wsu_nspw_early'],
@@ -1445,7 +1453,7 @@ def plot_spw_hist_all(mydb,
               linewidth=2,
               edgecolor=mycolors['early'],
               weights=mydb['weights_all'],
-              label='early WSU')
+              label='early WSU',log=ylog)
 
     #ax1. hist(mydb['wsu_nspw_later_2x'],
     #          bins=mybins,
@@ -1469,7 +1477,7 @@ def plot_spw_hist_all(mydb,
               color=mycolors['later_4x'],
               align='left',
               alpha=0.2,
-              weights=mydb['weights_all'])
+              weights=mydb['weights_all'],log=ylog)
 
     ax1. hist(mydb['wsu_nspw_later_4x'],
               bins=mybins,
@@ -1479,12 +1487,12 @@ def plot_spw_hist_all(mydb,
               linewidth=2,
               edgecolor=mycolors['later_4x'],
               weights=mydb['weights_all'],
-              label='Later WSU')
+              label='Later WSU',log=ylog)
 
     
     ax1.set_ylim((0,1.1))
 
-    ax1.legend(loc='upper left')
+    ax1.legend(loc='lower left')
     
     ax1.set_xlabel('Number of spectral windows')
     ax1.set_ylabel('Fraction of time')
