@@ -1931,13 +1931,13 @@ def plot_datarate_comparison(mydb,
     
 
     plt.axhline(0.1,color='gray',linestyle=':')
-    plt.text(-3.5,0.1,'10% larger')
+    plt.text(-2.8,0.1,'10% larger')
     
     plt.axhline(0.05,color='gray',linestyle=':')
-    plt.text(-3.5,0.05,'5% larger')
+    plt.text(-2.8,0.05,'5% larger')
 
     plt.axhline(0.01,color='gray',linestyle=':')
-    plt.text(-3.5,0.01,'1% larger')
+    plt.text(-2.8,0.01,'1% larger')
 
     plt.axvline(np.log10(0.070), color='gray',linestyle=':',linewidth=2)
     plt.text(np.log10(0.070)+0.05,0.7,'Current\nlimit' ,color='gray')
@@ -1956,11 +1956,18 @@ def plot_datarate_comparison(mydb,
     ## TODO: check how this actually looks on the plot
     if add_tech_limits:
 
-        plt.axvline(np.log10(3.5),color='gray', linestyle='-.', linewidth=2)
-        plt.text(np.log10(3.5)-0.05, 0.6, '3.5\nGB/s',color='gray',horizontalalignment='right')
+        #plt.axvline(np.log10(3.5),color='gray', linestyle='-.', linewidth=2)
+        #plt.text(np.log10(3.5)-0.05, 0.6, '3.5\nGB/s',color='gray',horizontalalignment='right')
 
-        plt.axvline(np.log10(7.0),color='gray', linestyle='-', linewidth=2)
-        plt.text(np.log10(7.0)+0.05, 0.15, '7.0\nGB/s',color='gray')
+        #plt.axvline(np.log10(7.0),color='gray', linestyle='-', linewidth=2)
+        #plt.text(np.log10(7.0)+0.05, 0.15, '7.0\nGB/s',color='gray')
+
+
+        plt.axvline(np.log10(1.98),color='gray', linestyle='-.', linewidth=2)
+        plt.text(np.log10(1.98)-0.05, 0.6, '1.98\nGB/s',color='gray',horizontalalignment='right')
+
+        plt.axvline(np.log10(3.95),color='gray', linestyle='-', linewidth=2)
+        plt.text(np.log10(3.95)+0.03, 0.15, '3.95\nGB/s',color='gray')
 
         
             
@@ -1994,6 +2001,7 @@ def plot_datarate_result_hist(mydb,
                               limit = None, # data rate limit in GB
                               limit_label = 'Data Rate Limit', # data rate limit
                               add_band2_specscan=False,
+                              band1_band2_estimate=None,
                               pltname=None,
                               add_tech_limits=False):
     '''
@@ -2043,22 +2051,35 @@ def plot_datarate_result_hist(mydb,
         mycolor = 'black'
     
     fig, ax1 = plt.subplots()
-    
-    myhist = ax1.hist(mydb[data_val].value,bins=mybins,
-                      log=log,
-                      color=mycolor,
-                      weights=mydb['weights_all'])
 
-    ax1.set_ylim((0,1))
+    if band1_band2_estimate:
+        plt.stairs(band1_band2_estimate[data_val]['median'],
+                   band1_band2_estimate[data_val]['bins'],
+                   label='w/ Bands 1 & 2',
+                   color=mycolor,
+                   fill=True,
+                   linewidth=2)
+        if log:
+            plt.yscale('log')
         
-    
-    if add_wavg:
+    else:
+        
+        myhist = ax1.hist(mydb[data_val].value,bins=mybins,
+                          log=log,
+                          color=mycolor,
+                          #histtype='step',
+                          weights=mydb['weights_all'])
 
-        wavg = np.average(mydb[data_val].value,weights=mydb['weights_all'])
-        ax1.axvline(wavg, color='black',linestyle=':',
-                 label='Weighted Average')
-        ax1.text(wavg+wavg*0.1,0.7, '{:5.2e} GB/s'.format(wavg),
-                 horizontalalignment='left',size=12)
+
+        if add_wavg:
+
+            wavg = np.average(mydb[data_val].value,weights=mydb['weights_all'])
+            ax1.axvline(wavg, color='black',linestyle=':',
+                        label='Weighted Average')
+            ax1.text(wavg+wavg*0.1,0.7, '{:5.2e} GB/s'.format(wavg),
+                     horizontalalignment='left',size=12)
+            
+    ax1.set_ylim((0,1))
 
     if limit:
         ax1.axvline(limit, color='gray', linestyle='--',linewidth=2,
@@ -2071,10 +2092,18 @@ def plot_datarate_result_hist(mydb,
 
 
     if add_tech_limits:
-        ax1.axvline(3.5,color='gray',linestyle=':',linewidth=2,
-                    label='3.5 GB/s')
-        ax1.axvline(7.0,color='gray',linestyle='-.',linewidth=2,
-                   label='7.0 GB/s')
+        #ax1.axvline(3.5,color='gray',linestyle=':',linewidth=2,
+        #            label='3.5 GB/s')
+        #ax1.axvline(7.0,color='gray',linestyle='-.',linewidth=2,
+        #           label='7.0 GB/s')
+
+
+        ax1.axvline(1.98,color='gray',linestyle=':',linewidth=2,
+                    label='1.98 GB/s')
+        ax1.axvline(3.95,color='gray',linestyle='-.',linewidth=2,
+                   label='3.95 GB/s')
+
+  
 
     ax1.set_xlabel('Data Rate (GB/s)')
     ax1.set_ylabel('Fraction of time')
@@ -2087,7 +2116,11 @@ def plot_datarate_result_hist(mydb,
         plt.savefig(pltname)
         
 
-        
+
+    
+
+ 
+    
 def plot_soc_result_hist(mydb,
                          bin_min=-1,
                          bin_max=-1,   
@@ -2335,7 +2368,7 @@ def plot_soc_result_cumulative(mydb,
     plt.text(-4,0.05,'5% larger')
 
     plt.axhline(0.01,color='gray',linestyle=':')
-    plt.text(-4,0.01,'1% larger')
+    plt.text(-2.5,0.01,'1% larger')
 
     plt.grid(which='both',axis='both',linestyle=':')
     
