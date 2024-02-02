@@ -49,9 +49,17 @@ def calc_talon_specwidth(specwidth, band, blc_velres):
 
         # fix up resulting channel averages
         chan_avg[chan_avg < 1.0] = 1.0 # can't go less than 1
-        
-        idx = (chan_avg < wsu_chanavg_min[band]) & (blc_velres > 0.095) & (blc_velres <= 0.5)
-        chan_avg[idx] = wsu_chanavg_min[band] # if in the 0.1 to 0.5 bin, then set to the minimum.
+
+        ## Had to update solution here for arrays. Original
+        ## solution didn't work. I should check the solutions.
+        wsu_chanavg_min_array = np.zeros(len(specwidth))
+        for mykey in wsu_chanavg_min.keys():
+            idx_band = (band == mykey)
+            nmatch = np.sum(idx_band)
+            wsu_chanavg_min_array[idx_band] = np.full(nmatch,wsu_chanavg_min[mykey])
+            
+        idx = (chan_avg < wsu_chanavg_min_array) & (blc_velres > 0.095) & (blc_velres <= 0.5)
+        chan_avg[idx] = wsu_chanavg_min_array[idx] # if in the 0.1 to 0.5 bin, then set to the minimum.
 
         # calculate the spec width
         specwidth_talon = talon_chan * chan_avg
@@ -63,7 +71,7 @@ def calc_talon_specwidth(specwidth, band, blc_velres):
         # fix up the resulting channel averages
         if chan_avg < 1.0:
             chan_avg = 1.0 # can't go less than 1
-        if ((chan_avg < wsu_chanavg_min[band]) & (blc_velres > 0.095) & (blc_velres <= 0.5)):
+        if ((chan_avg < wsu_chanavg_min[band]) & (blc_velres > 0.095) & (blc_velres <= 0.5)): ## should this be changed??
             chan_avg = wsu_chanavg_min[band]
         
         specwidth_talon = talon_chan * chan_avg
@@ -1119,7 +1127,7 @@ def add_rates_to_db(mydb, wsu_only=False, permous=False):
         
                 
     
-def calc_rates_for_db(mydb, array='typical',correlator='wsu',stage='early', velres='stepped2', permous=False):
+def calc_rates_for_db(mydb, array='typical',correlator='wsu',stage='early', velres='stepped2', permous=False, agg=False):
     '''
     Purpose: calculate data rates for a specific case
     
@@ -1134,10 +1142,15 @@ def calc_rates_for_db(mydb, array='typical',correlator='wsu',stage='early', velr
     Napc = 1.0 # offline WVR correlators
     Nant = mydb['nant_'+array]
 
-    if correlator == 'wsu':
+    ## original. could potentially change to aggregate number of channels since I have that now.
+    if (correlator == 'wsu' and not agg):
         Nspws = mydb[correlator+'_nspw_'+stage]
         Nchan_per_spw = mydb[correlator+'_nchan_spw_'+velres]
         Nchannels = Nspws * Nchan_per_spw
+        mylabel = stage+'_'+velres+'_'+array
+    ## added for uneven spws. easier to calculate with aggregate nchan. Doesn't change result.
+    elif (correlator == 'wsu' and agg): 
+        Nchannels = mydb[correlator+'_nchan_agg_'+velres+'_'+stage]
         mylabel = stage+'_'+velres+'_'+array
     elif correlator == 'blc':
         # use aggregate number of channels. Need to divide by number of tunings to take care of spectral
@@ -3022,7 +3035,29 @@ def generate_db_realizations(mydb, outDir='data/sample_band1_band2',filename='te
         
 def calculate_dist(outDir='data/sample_band1_band2',
                    filename='wsu_datarates_mit_per_mous_band12_20231002',             
-                   nbins=500):
+                   nbins=500,
+                   quantity_list = ['wsu_cubesize_stepped2',
+                                    'wsu_productsize_early_stepped2',                                  
+                                    'wsu_datarate_early_stepped2_typical', # typical number of antennas
+                                    'wsu_visrate_early_stepped2_typical',                                  
+                                    'wsu_datavol_early_stepped2_typical_target_tot',
+                                    'wsu_datavol_early_stepped2_typical_cal',
+                                    'wsu_datavol_early_stepped2_typical_total',
+                                    'wsu_productsize_later_4x_stepped2',                                  
+                                    'wsu_datarate_later_4x_stepped2_typical',
+                                    'wsu_visrate_later_4x_stepped2_typical',                                  
+                                    'wsu_datavol_later_4x_stepped2_typical_target_tot',
+                                    'wsu_datavol_later_4x_stepped2_typical_cal',
+                                    'wsu_datavol_later_4x_stepped2_typical_total',
+                                    'wsu_productsize_later_4x_stepped2',                                  
+                                    'blc_sysperf_typical_allgrid',
+                                    'wsu_sysperf_early_stepped2_typical_allgrid',
+                                    'wsu_sysperf_later_2x_stepped2_typical_allgrid',
+                                    'wsu_sysperf_later_4x_stepped2_typical_allgrid',
+                                    'blc_sysperf_typical_aprojonly',
+                                    'wsu_sysperf_early_stepped2_typical_aprojonly',
+                                    'wsu_sysperf_later_2x_stepped2_typical_aprojonly',
+                                    'wsu_sysperf_later_4x_stepped2_typical_aprojonly']):
     
     '''
     calculate the max, median, min of the cumulative distribution functions.
@@ -3049,70 +3084,6 @@ def calculate_dist(outDir='data/sample_band1_band2',
     
     sample_list = glob.glob(os.path.join(outDir,filename+"_*.ecsv"))
 
-    quantity_list = ['wsu_cubesize_stepped2',
-                     'wsu_productsize_early_stepped2',                                  
-                     'wsu_datarate_early_stepped2_typical', # typical number of antennas
-                     'wsu_visrate_early_stepped2_typical',                                  
-                     'wsu_datavol_early_stepped2_typical_target_tot',
-                     'wsu_datavol_early_stepped2_typical_cal',
-                     'wsu_datavol_early_stepped2_typical_total',
-                     #'wsu_nvis_early_stepped2_typical_target_tot',
-                     #'wsu_nvis_early_stepped2_typical_cal',
-                     #'wsu_nvis_early_stepped2_typical_total',
-                     #'wsu_productsize_later_2x_stepped2',                                  
-                     #'wsu_datarate_later_2x_stepped2_typical',
-                     #'wsu_visrate_later_2x_stepped2_typical',                                  
-                     #'wsu_datavol_later_2x_stepped2_typical_target_tot',
-                     #'wsu_datavol_later_2x_stepped2_typical_cal',
-                     #'wsu_datavol_later_2x_stepped2_typical_total',
-                     #'wsu_nvis_later_2x_stepped2_typical_target_tot',
-                     #'wsu_nvis_later_2x_stepped2_typical_cal',
-                     #'wsu_nvis_later_2x_stepped2_typical_total',
-                     'wsu_productsize_later_4x_stepped2',                                  
-                     'wsu_datarate_later_4x_stepped2_typical',
-                     'wsu_visrate_later_4x_stepped2_typical',                                  
-                     'wsu_datavol_later_4x_stepped2_typical_target_tot',
-                     'wsu_datavol_later_4x_stepped2_typical_cal',
-                     'wsu_datavol_later_4x_stepped2_typical_total',
-                     #'wsu_nvis_later_4x_stepped2_typical_target_tot',
-                     #'wsu_nvis_later_4x_stepped2_typical_cal',
-                     #'wsu_nvis_later_4x_stepped2_typical_total',                     
-                     #'wsu_datarate_early_stepped2_array', ## peak number of antenna (total array)
-                     #'wsu_visrate_early_stepped2_array',                                  
-                     #'wsu_datavol_early_stepped2_array_target_tot',
-                     #'wsu_datavol_early_stepped2_array_cal',
-                     #'wsu_datavol_early_stepped2_array_total',
-                     #'wsu_nvis_early_stepped2_array_target_tot',
-                     #'wsu_nvis_early_stepped2_array_cal',
-                     #'wsu_nvis_early_stepped2_array_total',
-                     #'wsu_productsize_later_2x_stepped2',                                  
-                     #'wsu_datarate_later_2x_stepped2_array',
-                     #'wsu_visrate_later_2x_stepped2_array',                                  
-                     #'wsu_datavol_later_2x_stepped2_array_target_tot',
-                     #'wsu_datavol_later_2x_stepped2_array_cal',
-                     #'wsu_datavol_later_2x_stepped2_array_total',
-                     #'wsu_nvis_later_2x_stepped2_array_target_tot',
-                     #'wsu_nvis_later_2x_stepped2_array_cal',
-                     #'wsu_nvis_later_2x_stepped2_array_total',
-                     'wsu_productsize_later_4x_stepped2',                                  
-                     #'wsu_datarate_later_4x_stepped2_array',
-                     #'wsu_visrate_later_4x_stepped2_array',                                  
-                     #'wsu_datavol_later_4x_stepped2_array_target_tot',
-                     #'wsu_datavol_later_4x_stepped2_array_cal',
-                     #'wsu_datavol_later_4x_stepped2_array_total',
-                     #'wsu_nvis_later_4x_stepped2_array_target_tot',
-                     #'wsu_nvis_later_4x_stepped2_array_cal',
-                     #'wsu_nvis_later_4x_stepped2_array_total',
-                     'blc_sysperf_typical_allgrid',
-                     #'flops_per_vis_allgrid',
-                     'wsu_sysperf_early_stepped2_typical_allgrid',
-                     'wsu_sysperf_later_2x_stepped2_typical_allgrid',
-                     'wsu_sysperf_later_4x_stepped2_typical_allgrid',
-                     'blc_sysperf_typical_aprojonly',
-                     #'flops_per_vis_aprojonly',
-                     'wsu_sysperf_early_stepped2_typical_aprojonly',
-                     'wsu_sysperf_later_2x_stepped2_typical_aprojonly',
-                     'wsu_sysperf_later_4x_stepped2_typical_aprojonly']
 
 
 
@@ -3444,6 +3415,195 @@ def calc_wsu_stats_allsamples(outDir='data/sample_band1_band2',
     return myresults_stats
                 
 
+def calc_uneven_spw_estimate(mydb, frac_low_spw = 0.5, frac_with_uneven_spw = 0.5):
+    '''
+
+    Purpose: create a realization of my database including an estimate of what the effects of
+    unevens pectral windows are.
+
+    Input:
+        mydb: wsu database
+
+        frac_low_spw: fraction of low resolution spws per affected MOUS
+
+        frac_with_uneven_spw: fraction of affected MOUSes (per velocity bin).
+
+    Output:
+        revised data base with values for high and low resolution spws, data rate,
+        visibility data volume, and product size estimates.
+
+    TODO:
+        * double-check units
+    
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------------
+    1/16/2024   A.A. Kepley     Original Code
+    
+    '''
+    from large_cubes import calc_cube_size
+
+    # sets of velocity bins for calculation
+    bin_vals = [[0.5, 2.0],[0.1, 0.5],[0.00001, 0.1]] * (u.km / u.s)
+
+    # initialize random number generator
+    rng = np.random.default_rng()
+
+    # get properties of the sample
+    nrows = len(mydb)
+    idx_list = np.arange(nrows)
+
+    ## initialize uneven sample variable
+    mydb['wsu_uneven_samp'] = np.full(nrows, False)
+    
+    ## initialize low values
+    mydb['wsu_velres_low'] = np.zeros(nrows) * (u.km / u.s)
+    mydb['wsu_specwidth_low'] = np.zeros(nrows) * u.kHz ## UNITS
+    mydb['wsu_chanavg_low'] = np.zeros(nrows)
+    mydb['wsu_nspw_low_early'] = np.zeros(nrows,dtype='int32')
+    mydb['wsu_nspw_low_later_4x'] = np.zeros(nrows,dtype='int32')
+    mydb['wsu_nchan_spw_low'] = np.zeros(nrows)
+    
+    mydb['wsu_velres_high'] = mydb['wsu_velres_stepped2']
+    mydb['wsu_specwidth_high'] = mydb['wsu_specwidth_stepped2'] 
+    mydb['wsu_chanavg_high'] = mydb['wsu_chanavg_stepped2']
+    mydb['wsu_nspw_high_early'] = mydb['wsu_nspw_early']
+    mydb['wsu_nspw_high_later_4x'] = mydb['wsu_nspw_later_4x']
+    mydb['wsu_nchan_spw_high'] = mydb['wsu_nchan_spw_stepped2']
+    
+    for (bin_min, bin_max) in bin_vals:
+
+        # select out the values in the bin
+        idx = (mydb['blc_velres'] > bin_min) & (mydb['blc_velres'] <= bin_max)
+
+        # get indices of bin values
+        idx_list_subsample = idx_list[idx]
+
+        # get number of rows in subsample
+        nrows_subsample = len(idx_list_subsample)
+        
+        ## use choice to select indexes at random. Replace=False to get unique values.
+        ## The size is set to the fraction of the total number of rows.
+        idx_list_uneven = rng.choice(idx_list_subsample,
+                                     size=int(np.floor(frac_with_uneven_spw * nrows_subsample)),
+                                     replace=False)
+
+        nrows_uneven = len(idx_list_uneven)
+
+        # indicate which projects has the uneven spws
+        mydb['wsu_uneven_samp'][idx_list_uneven] = np.full(nrows_uneven,True) 
+
+        # set the low velocity resolution, which is confusing called bin_max.
+        if bin_max.value == 0.1:
+            wsu_velres_low_tmp = mydb['wsu_velres_high'][idx_list_uneven] * 5.0
+            badidx = wsu_velres_low_tmp > 0.5 *u.km/u.s
+            wsu_velres_low_tmp[badidx] = np.full(np.sum(badidx),0.5)* (u.km / u.s)
+        else:
+            wsu_velres_low_tmp = np.full(nrows_uneven,bin_max.value) * (u.km / u.s)
+
+        ## calculate ATAC channel size and number of channels to average
+        specwidth_tmp = ((wsu_velres_low_tmp /  const.c.to('km/s')) * mydb['wsu_freq'][idx_list_uneven].to('Hz')).to('kHz') 
+        
+        specwidth_low, chanavg_low = calc_talon_specwidth(specwidth_tmp.value,
+                                                          mydb['band'][idx_list_uneven],
+                                                          wsu_velres_low_tmp.value)
+
+        # set the final spec width and channel average
+        mydb['wsu_specwidth_low'][idx_list_uneven] = specwidth_low * u.kHz
+        mydb['wsu_chanavg_low'][idx_list_uneven] = chanavg_low       
+
+        # calculate the final low velocity resolution
+        mydb['wsu_velres_low'][idx_list_uneven] = (mydb['wsu_specwidth_low'][idx_list_uneven]/mydb['wsu_freq'][idx_list_uneven].to('kHz')) * const.c.to('km/s')
+        
+        ## calculate the number of spectral windows
+        mydb['wsu_nspw_low_early'][idx_list_uneven] = np.floor(frac_low_spw * mydb['wsu_nspw_early'][idx_list_uneven]) 
+        mydb['wsu_nspw_high_early'][idx_list_uneven] = mydb['wsu_nspw_early'][idx_list_uneven] - mydb['wsu_nspw_low_early'][idx_list_uneven]
+
+        mydb['wsu_nspw_low_later_4x'][idx_list_uneven] = np.floor(frac_low_spw * mydb['wsu_nspw_later_4x'][idx_list_uneven]) 
+        mydb['wsu_nspw_high_later_4x'][idx_list_uneven] = mydb['wsu_nspw_later_4x'][idx_list_uneven] - mydb['wsu_nspw_low_later_4x'][idx_list_uneven]
+        
+        ## calculate the number of channels per spectral window
+        ##  Only need to do for low since high is just the same as before.
+        mydb['wsu_nchan_spw_low'][idx_list_uneven] = np.floor((mydb['wsu_bandwidth_spw'][idx_list_uneven]/mydb['wsu_specwidth_low'][idx_list_uneven]).decompose())
+        
+    # calculate aggregate number of channels
+    mydb['wsu_nchan_agg_uneven_early'] = mydb['wsu_nchan_spw_low'] * mydb['wsu_nspw_low_early'] + mydb['wsu_nchan_spw_high'] * mydb['wsu_nspw_high_early']
+    mydb['wsu_nchan_agg_uneven_later_4x'] = mydb['wsu_nchan_spw_low'] * mydb['wsu_nspw_low_later_4x'] + mydb['wsu_nchan_spw_high'] * mydb['wsu_nspw_high_later_4x']
+
+    # calculate data rate and visibility data volume
+    calc_rates_for_db(mydb,array='typical',correlator='wsu',stage='early',velres='uneven', agg=True, permous=True)
+    calc_rates_for_db(mydb,array='typical',correlator='wsu',stage='later_4x',velres='uneven', agg=True, permous=True)
+
+    ## calculate cube size
+    mydb['wsu_cubesize_low'] = calc_cube_size(mydb['imsize'],mydb['wsu_nchan_spw_low'])
+    mydb['wsu_cubesize_high'] = calc_cube_size(mydb['imsize'],mydb['wsu_nchan_spw_high'])
+
+    ## calculate product size.
+    mydb['wsu_productsize_early_uneven'] = mydb['ntarget']  *  2.0 * \
+                                           ( ( (mydb['wsu_cubesize_low'] + mydb['mfssize']) * mydb['wsu_nspw_low_early']) +
+                                             ( (mydb['wsu_cubesize_high'] + mydb['mfssize']) * mydb['wsu_nspw_high_early'])) 
+
+
+    mydb['wsu_productsize_later_4x_uneven'] = mydb['ntarget']  *  2.0 * \
+                                           ( ( (mydb['wsu_cubesize_low'] + mydb['mfssize']) * mydb['wsu_nspw_low_later_4x']) +
+                                             ( (mydb['wsu_cubesize_high'] + mydb['mfssize']) * mydb['wsu_nspw_high_later_4x'])) 
+
+
+    ## calculate system performance
+    calc_sysperf(mydb,
+                 mosaic_aproject=True,
+                 wproject=False,
+                 label='aprojonly',
+                 visrate_list=['wsu_visrate_early_uneven_typical','wsu_visrate_later_4x_uneven_typical'])
+
+
+
+def generate_uneven_spw_realizations(mydb, outDir='data/sample_uneven_spws',filename='test',
+                                     n=3,
+                                     frac_low_spw = 0.5, frac_with_uneven_spw = 0.5):
+                                    ### add other control parameters here as needed
+    '''
+    generate realizations of unevenspws so that I can calculate statistics
+
+    filename: name of resulting data base
+
+    outDir: directory to put data bases
+
+    n: number of iterations
+
+    frac_low_spw: fraction of spw at low spectral resolution
+
+    frac_with_uneven_spw: fraction of MOUSes with per bin
+
+    NOTES: This is notably faster than the band 1 and band 2 monte carlos.
+    ## 2min for 50 realizations on my laptop.
+    
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    1/19/2024   A.A. Kepley     Original Code
+    
+    '''
+
+    import os
+
+    if not os.path.exists(outDir):
+        os.mkdir(outDir)
+    
+    for i in range(n):
+        
+        outfilename = "{0:s}_{1:03d}.ecsv".format(filename,i)
+        outfile = os.path.join(outDir,outfilename)
+        print('-------------')
+        print(outfile)
+
+        newdb = mydb
+
+        calc_uneven_spw_estimate(newdb,
+                                 frac_low_spw=frac_low_spw,
+                                 frac_with_uneven_spw=frac_with_uneven_spw)
+
+        newdb.write(outfile,overwrite=True)
+        del newdb
+
 def calc_sysperf(mydb,
                  mosaic_aproject=True,
                  wproject=True,
@@ -3451,7 +3611,11 @@ def calc_sysperf(mydb,
                  multiscale_factor = 1.2, # default for ngVLA SoC
                  core_efficiency = 0.05, # core_efficiency; value from ngVLA SoC -- measured number
                  parallelization_efficiency = 0.8, # parallelization_efficiency; value from ngVLA SoC -- assumption
-                 k = 20 # total number of major cycles over all re-runs; my standard value
+                 k = 20, # total number of major cycles over all re-runs; my standard value
+                 visrate_list = ['blc_visrate_typical',
+                                 'wsu_visrate_early_stepped2_typical',
+                                 'wsu_visrate_later_2x_stepped2_typical',
+                                 'wsu_visrate_later_4x_stepped2_typical']
                  ):
     '''
     Purpose: calculate the fraction of time spent for each MOUS and the required system performance
@@ -3514,10 +3678,7 @@ def calc_sysperf(mydb,
     nterms_factor_arr = np.ones(len(mydb))                
     
     # calculate system performance
-    visrate_list = ['blc_visrate_typical',
-                    'wsu_visrate_early_stepped2_typical',
-                    'wsu_visrate_later_2x_stepped2_typical',
-                    'wsu_visrate_later_4x_stepped2_typical']
+   
     
     for visrate in visrate_list :
 

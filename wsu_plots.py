@@ -357,14 +357,14 @@ def make_imsize_vs_nchan_hist2d(result, chan_type = 'wsu_nchan_final_stepped',
         ax.text(1.7,np.log10(band2specscan_500MBs['nchan']/nspw)+0.05, "Data rate = 500 MB/s",
                 size=16)
 
-        ax.axhline(np.log10(band2specscan['nchan']/nspw),label="Data rate = \n 1800 MB/s",
+        ax.axhline(np.log10(band2specscan['nchan']/nspw),label="12m Peak Data Rate (early) = \n 1.98 GB/s",
                    color=color_specscan, linewidth=4, linestyle='--')
-        ax.text(1.7,np.log10(band2specscan['nchan']/nspw)+0.05, "Data rate = 1800 MB/s",
+        ax.text(1.7,np.log10(band2specscan['nchan']/nspw)+0.05, "12m Peak Data Rate (early) = 1.98 GB/s",
                 size=16)
         
-        ax.axhline(np.log10(80*14880/nspw), label="Max data rate = \n 3600 MB/s",
+        ax.axhline(np.log10(80*14880/nspw), label="12m Peak Data Rate (later) = \n 3.95 GB/s",
                    linewidth=4,linestyle=':',color=color_specscan)
-        ax.text(1.7,np.log10(80*14880/nspw)+0.05, "Max data rate = 3600 MB/s",
+        ax.text(1.7,np.log10(80*14880/nspw)+0.05, "12m Peak Data Rate (later) = 3.95 GB/s",
                 size=16)
 
     if mit_limits:
@@ -412,7 +412,7 @@ def make_imsize_vs_nchan_hist2d(result, chan_type = 'wsu_nchan_final_stepped',
     plt.colorbar(image,cax=cax, orientation = 'horizontal',label='Number of spws')
     
     if pltname:
-        plt.savefig(pltname)
+        plt.savefig(pltname, dpi=600)
     
     return h, xedges, yedges
 
@@ -1510,6 +1510,7 @@ def plot_productsize_comparison(mydb,
                                 plot_title='Product Size',
                                 mitigated_wsu=False,
                                 band1_band2_estimate=None,
+                                uneven_spw_estimate=None,
                                 figname=None):
     '''
     Purpose: compare the productsize distribution
@@ -1518,7 +1519,8 @@ def plot_productsize_comparison(mydb,
     Date        Programmer      Description of Changes
     --------------------------------------------------
     1/31/2023   A.A. Kepley     Original Code
-
+    9/2024 A.A. Kepley          Added band 1 and 2 estimates
+    1/19/2024   A.A. Kepley     Added uneven spw estimates
     '''
 
     #maxproductsize = 500 #GB
@@ -1580,7 +1582,21 @@ def plot_productsize_comparison(mydb,
                    label='w/ Bands 1 & 2',
                    color=mycolors['early'],
                    linewidth=2,                   
-                   linestyle=':') 
+                   linestyle=':')
+
+    if uneven_spw_estimate:
+        plt.fill_between(uneven_spw_estimate['wsu_productsize_early_uneven']['bins'][1:],
+                         uneven_spw_estimate['wsu_productsize_early_uneven']['min'],
+                         y2=uneven_spw_estimate['wsu_productsize_early_uneven']['max'],
+                         step='pre',
+                         color='darkgray',                         
+                         alpha=0.4)
+        plt.stairs(uneven_spw_estimate['wsu_productsize_early_uneven']['median'],
+                   uneven_spw_estimate['wsu_productsize_early_uneven']['bins'],
+                   label='w/ uneven spws',
+                   color=mycolors['early'],
+                   linewidth=2,                   
+                   linestyle='--')
     
     #plt.hist(np.log10(mydb['wsu_productsize_later_2x_stepped2'].to('TB').value), cumulative=-1, histtype='step',
     #         bins=mybins,
@@ -1616,6 +1632,21 @@ def plot_productsize_comparison(mydb,
                    linestyle=':') 
     
 
+    if uneven_spw_estimate:
+        plt.fill_between(uneven_spw_estimate['wsu_productsize_later_4x_uneven']['bins'][1:],
+                         uneven_spw_estimate['wsu_productsize_later_4x_uneven']['min'],
+                         y2=uneven_spw_estimate['wsu_productsize_later_4x_uneven']['max'],
+                         step='pre',
+                         color='darkgray',                         
+                         alpha=0.4)
+        plt.stairs(uneven_spw_estimate['wsu_productsize_later_4x_uneven']['median'],
+                   uneven_spw_estimate['wsu_productsize_later_4x_uneven']['bins'],
+                   label='w/ uneven spws',
+                   color=mycolors['later_4x'],
+                   linewidth=2,                   
+                   linestyle='--')
+
+        
     plt.axvline(np.log10(maxproductsize), color='black', linestyle=':')
     plt.text(np.log10(maxproductsize)+0.1,0.65,'Current product size limit\n(500GB)',horizontalalignment='left')
 
@@ -1652,6 +1683,7 @@ def plot_datavol_comparison(mydb,
                             datatype='total',
                             plot_title="Visibility Data Volume",
                             band1_band2_estimate=None,
+                            uneven_spw_estimate=None,                            
                             figname=None):
     '''
     Purpose: compare the nvis distribution
@@ -1696,7 +1728,22 @@ def plot_datavol_comparison(mydb,
                    color=mycolors['early'],
                    linewidth=2,
                    linestyle=':')
-    
+
+    if uneven_spw_estimate:
+        plt.fill_between(uneven_spw_estimate['wsu_datavol_early_uneven_typical_'+datatype]['bins'][1:],
+                         uneven_spw_estimate['wsu_datavol_early_uneven_typical_'+datatype]['min'],
+                         uneven_spw_estimate['wsu_datavol_early_uneven_typical_'+datatype]['max'],
+                         step='pre',
+                         color='darkgray',
+                         alpha=0.4)
+        plt.stairs(uneven_spw_estimate['wsu_datavol_early_uneven_typical_'+datatype]['median'],
+                   uneven_spw_estimate['wsu_datavol_early_uneven_typical_'+datatype]['bins'] ,
+                   label='w/ uneven spws',
+                   color=mycolors['early'],
+                   linewidth=2,
+                   linestyle='--')
+
+        
     #plt.hist(np.log10(mydb['wsu_datavol_later_2x_stepped2_typical_total'].to('TB').value), cumulative=-1,histtype='step',
     #         bins=mybins,
     #         log=True,
@@ -1728,6 +1775,20 @@ def plot_datavol_comparison(mydb,
                    linewidth=2,
                    linestyle=':')
 
+    if uneven_spw_estimate:
+        plt.fill_between(uneven_spw_estimate['wsu_datavol_later_4x_uneven_typical_'+datatype]['bins'][1:],
+                         uneven_spw_estimate['wsu_datavol_later_4x_uneven_typical_'+datatype]['min'],
+                         uneven_spw_estimate['wsu_datavol_later_4x_uneven_typical_'+datatype]['max'],
+                         step='pre',
+                         color='darkgray',
+                         alpha=0.4)
+        plt.stairs(uneven_spw_estimate['wsu_datavol_later_4x_uneven_typical_'+datatype]['median'],
+                   uneven_spw_estimate['wsu_datavol_later_4x_uneven_typical_'+datatype]['bins'] ,
+                   label='w/ uneven spws',
+                   color=mycolors['later_4x'],
+                   linewidth=2,
+                   linestyle='--')
+        
     plt.axhline(0.1,color='gray',linestyle=':')
     plt.text(-3,0.1,'10% larger')
 
@@ -1839,6 +1900,7 @@ def plot_datarate_comparison(mydb,
                              figname=None,
                              add_band2_specscan=False,
                              band1_band2_estimate=None,
+                             uneven_spw_estimate=None,                             
                              add_tech_limits=False):
     '''
     Purpose: compare the data rate distribution between WSU and BLC.
@@ -1881,7 +1943,22 @@ def plot_datarate_comparison(mydb,
                    color=mycolors['early'],
                    linewidth=2,                   
                    linestyle=':') 
+
+    if uneven_spw_estimate:
+        plt.fill_between(uneven_spw_estimate['wsu_datarate_early_uneven_typical']['bins'][1:],
+                         uneven_spw_estimate['wsu_datarate_early_uneven_typical']['min'],
+                         y2=uneven_spw_estimate['wsu_datarate_early_uneven_typical']['max'],
+                         step='pre',
+                         color='darkgray',                         
+                         alpha=0.4)
+        plt.stairs(uneven_spw_estimate['wsu_datarate_early_uneven_typical']['median'],
+                   uneven_spw_estimate['wsu_datarate_early_uneven_typical']['bins'],
+                   label='w/ uneven spws',
+                   color=mycolors['early'],
+                   linewidth=2,                   
+                   linestyle='--') 
     
+        
     #plt.hist(np.log10(mydb['wsu_datarate_later_2x_stepped2_typical'].value), cumulative=-1,histtype='step',
     #         bins=mybins,
     #         log=True,
@@ -1929,7 +2006,22 @@ def plot_datarate_comparison(mydb,
                    linewidth=2,                   
                    linestyle=':') 
     
+    if uneven_spw_estimate:
+        plt.fill_between(uneven_spw_estimate['wsu_datarate_later_4x_uneven_typical']['bins'][1:],
+                         uneven_spw_estimate['wsu_datarate_later_4x_uneven_typical']['min'],
+                         y2=uneven_spw_estimate['wsu_datarate_later_4x_uneven_typical']['max'],
+                         step='pre',
+                         color='darkgray',                         
+                         alpha=0.4)
+        plt.stairs(uneven_spw_estimate['wsu_datarate_later_4x_uneven_typical']['median'],
+                   uneven_spw_estimate['wsu_datarate_later_4x_uneven_typical']['bins'],
+                   label='w/ uneven spws',
+                   color=mycolors['later_4x'],
+                   linewidth=2,                   
+                   linestyle='--') 
+    
 
+        
     plt.axhline(0.1,color='gray',linestyle=':')
     plt.text(-2.8,0.1,'10% larger')
     
@@ -1984,9 +2076,9 @@ def plot_datarate_comparison(mydb,
     
     plt.title(plot_title)
     plt.legend(loc='lower left')
-
+    
     if figname:
-        plt.savefig(figname)
+        plt.savefig(figname, dpi=600)
 
     
          
@@ -2113,7 +2205,7 @@ def plot_datarate_result_hist(mydb,
     ax1.legend()
     
     if pltname:
-        plt.savefig(pltname)
+        plt.savefig(pltname, dpi=600)
         
 
 
@@ -2211,6 +2303,7 @@ def plot_soc_result_cumulative(mydb,
                                add_wavg=False,
                                add_band2_specscan = None,
                                band1_band2_estimate=None,
+                               uneven_spw_estimate=None,                            
                                pltname=None):
 
     '''
@@ -2279,6 +2372,20 @@ def plot_soc_result_cumulative(mydb,
                    color=mycolors['early'],
                    linewidth=2,
                    linestyle=':')
+
+    if uneven_spw_estimate:
+        plt.fill_between(uneven_spw_estimate['wsu_sysperf_early_uneven_typical'+'_'+label]['bins'][1:],
+                         uneven_spw_estimate['wsu_sysperf_early_uneven_typical'+'_'+label]['min'],
+                         y2=uneven_spw_estimate['wsu_sysperf_early_uneven_typical'+'_'+label]['max'],
+                         step='pre',
+                         color='darkgray',
+                         alpha=0.4)
+        plt.stairs(uneven_spw_estimate['wsu_sysperf_early_uneven_typical'+'_'+label]['median'],
+                   uneven_spw_estimate['wsu_sysperf_early_uneven_typical'+'_'+label]['bins'],
+                   label='w/ uneven spws',
+                   color=mycolors['early'],
+                   linewidth=2,
+                   linestyle='--')
                                                                                             
     if add_wavg:
         wavg = np.average(mydb['wsu_sysperf_early_stepped2_typical'+'_'+label],weights=mydb['weights_all'])
@@ -2326,6 +2433,21 @@ def plot_soc_result_cumulative(mydb,
                    linewidth=2,
                    linestyle=':')
     
+
+    if uneven_spw_estimate:
+        plt.fill_between(uneven_spw_estimate['wsu_sysperf_later_4x_uneven_typical'+'_'+label]['bins'][1:],
+                         uneven_spw_estimate['wsu_sysperf_later_4x_uneven_typical'+'_'+label]['min'],
+                         y2=uneven_spw_estimate['wsu_sysperf_later_4x_uneven_typical'+'_'+label]['max'],
+                         step='pre',
+                         color='darkgray',
+                         alpha=0.4)
+        plt.stairs(uneven_spw_estimate['wsu_sysperf_later_4x_uneven_typical'+'_'+label]['median'],
+                   uneven_spw_estimate['wsu_sysperf_later_4x_uneven_typical'+'_'+label]['bins'],
+                   label='w/ uneven spws',
+                   color=mycolors['later_4x'],
+                   linewidth=2,
+                   linestyle='--')
+        
     if add_wavg:
         wavg = np.average(mydb['wsu_sysperf_later_4x_stepped2_typical'+'_'+label],weights=mydb['weights_all'])
         plt.axvline(np.log10(wavg), color=mycolors['later_4x'], linestyle=':')
@@ -3184,3 +3306,73 @@ def plot_l80(mydb):
     
     ax.set_xlabel('L80 ('+ mydb['L80'].unit.to_string() + ')')
     ax.set_title('ALMA Cycle 7 and 8 -- Band 3')
+
+
+def plot_tint_nchan_scatter(mydb,
+                            pltname=None):
+    '''
+    Purpose: plot scatter plot of integration times vs. nchan for peak data rate memo
+
+    TODO: check if blc_nchan_max is what we want to be plotting here. I think I might need to go back to the original data base and then it means adding the spws.
+    
+    Date        Programmer      Original Code
+    ------------------------------------------
+    1/24/2024   A.A. Kepley     Original code
+
+    '''
+
+    idx_12m = mydb['array'] == '12m'
+    idx_7m = mydb['array'] == '7m'
+    
+
+    plt.scatter(mydb['blc_nchan_max'][idx_12m],mydb['blc_tint'][idx_12m],
+                marker='o',color='LimeGreen',
+                label='12m')
+
+    plt.scatter(mydb['blc_nchan_max'][idx_7m],mydb['blc_tint'][idx_7m],
+                marker='^',color='cornflowerblue',
+                label='7m')
+
+    plt.ylabel('BLC/ACA integration time (s)')
+    plt.xlabel('BLC/ACA Maximum nchan over all spws')
+
+    plt.legend()
+
+    if pltname:
+        plt.savefig(pltname)
+
+
+def plot_tint_l80_scatter(mydb,
+                          pltname=None):
+    '''
+    Purpose: plot scatter plot of integration times vs. nchan for peak data rate memo
+
+    TODO: check if blc_nchan_max is what we want to be plotting here. I think I might need to go back to the original data base and then it means adding the spws.
+    
+    Date        Programmer      Original Code
+    ------------------------------------------
+    1/24/2024   A.A. Kepley     Original code
+
+    '''
+
+    idx_12m = mydb['array'] == '12m'
+    idx_7m = mydb['array'] == '7m'
+    
+
+    plt.scatter(mydb['L80'][idx_12m].to('km'),mydb['blc_tint'][idx_12m],
+                marker='o',color='LimeGreen',
+                label='12m')
+
+    
+    plt.scatter(mydb['L80'][idx_7m].to('km'),mydb['blc_tint'][idx_7m],
+                marker='^',color='cornflowerblue',
+                label='7m')
+
+
+    plt.ylabel('BLC/ACA integration time (s)')
+    plt.xlabel('L80 (km)')
+
+    plt.legend()
+
+    if pltname:
+        plt.savefig(pltname)
