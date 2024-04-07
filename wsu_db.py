@@ -101,6 +101,7 @@ def create_database(cycle7tab):
     # overall info
     if_mous_list = []
     proposal_id_list = []
+    if_gous_list = []
     schedblock_name_list = []
     array_list = []
     science_keyword_list = []
@@ -200,6 +201,10 @@ def create_database(cycle7tab):
             proposal_id = np.unique(cycle7tab[idx]['proposal_id'])
             proposal_id_list.append(proposal_id)
 
+            # gous id
+            if_gous = np.unique(cycle7tab[idx]['group_ous_uid'])
+            if_gous_list.append(if_gous)
+            
             # scheduling block info
             schedblock_name = np.unique(cycle7tab[idx]['schedblock_name'])
             schedblock_name_list.append(schedblock_name)
@@ -465,7 +470,9 @@ def create_database(cycle7tab):
     #ipdb.set_trace()
     
     # put together table
-    if_mous_tab = QTable([np.squeeze(if_mous_list), np.squeeze(proposal_id_list), np.squeeze(schedblock_name_list),np.squeeze(array_list), 
+    if_mous_tab = QTable([np.squeeze(if_mous_list), np.squeeze(proposal_id_list),
+                          np.squeeze(if_gous_list),np.squeeze(schedblock_name_list),
+                          np.squeeze(array_list), 
                           np.squeeze(science_keyword_list), np.squeeze(scientific_category_list),
                           np.squeeze(nant_typical_list), np.squeeze(nant_array_list), np.squeeze(nant_all_list), 
                           np.squeeze(band_list_array), np.squeeze(ntarget_list), np.squeeze(target_name_list),
@@ -481,7 +488,9 @@ def create_database(cycle7tab):
                           np.squeeze(wsu_specwidth_stepped), np.squeeze(wsu_chanavg_stepped), np.squeeze(wsu_velres_stepped),
                           np.squeeze(wsu_specwidth_stepped2), np.squeeze(wsu_chanavg_stepped2), np.squeeze(wsu_velres_stepped2),
                           np.squeeze(wsu_tint_list)],
-                         names=('mous','proposal_id','schedblock_name','array',
+                         names=('mous','proposal_id',
+                                'gous','schedblock_name',
+                                'array',
                                 'science_keyword','scientific_category',
                                 'nant_typical','nant_array','nant_all',
                                 'band','ntarget','target_name',
@@ -581,6 +590,7 @@ def create_tp_database(cycle7tab):
     # overall info
     if_mous_list = []
     proposal_id_list = []
+    if_gous_list = []
     schedblock_name_list = []
     array_list = []
     science_keyword_list = []
@@ -659,6 +669,11 @@ def create_tp_database(cycle7tab):
             # proposal id 
             proposal_id = np.unique(cycle7tab[idx]['proposal_id'])
             proposal_id_list.append(proposal_id)
+
+
+            # proposal id 
+            if_gous = np.unique(cycle7tab[idx]['group_ous_uid'])
+            if_gous_list.append(if_gous)
 
             # scheduling block info
             schedblock_name = np.unique(cycle7tab[idx]['schedblock_name'])
@@ -859,7 +874,9 @@ def create_tp_database(cycle7tab):
     wsu_freq_list = np.array(wsu_freq_list) * u.GHz
 
     # put together table
-    if_mous_tab = QTable([np.squeeze(if_mous_list), np.squeeze(proposal_id_list), np.squeeze(schedblock_name_list),np.squeeze(array_list), 
+    if_mous_tab = QTable([np.squeeze(if_mous_list), np.squeeze(proposal_id_list),
+                          np.squeeze(if_gous_list),np.squeeze(schedblock_name_list),
+                          np.squeeze(array_list), 
                           np.squeeze(science_keyword_list), np.squeeze(scientific_category_list),
 
                           np.squeeze(band_list_array), np.squeeze(ntarget_list), np.squeeze(target_name_list),
@@ -872,7 +889,9 @@ def create_tp_database(cycle7tab):
                           np.squeeze(wsu_bandwidth_early), np.squeeze(wsu_bandwidth_later_4x), np.squeeze(wsu_bandwidth_spw), 
                           np.squeeze(wsu_nspw_early), np.squeeze(wsu_nspw_later_4x),
                           np.squeeze(wsu_specwidth_stepped2), np.squeeze(wsu_chanavg_stepped2), np.squeeze(wsu_velres_stepped2)],
-                         names=('mous','proposal_id','schedblock_name','array',
+                         names=('mous','proposal_id',
+                                'gous', 'schedblock_name',
+                                'array',
                                 'science_keyword','scientific_category',
                                 'band','ntarget','target_name',
                                 's_fov','s_resolution','mosaic',
@@ -2939,7 +2958,7 @@ def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr):
         db_update['wsu_nchan_agg_'+veltype+'_later_4x'] = db_update['wsu_nchan_spw_'+veltype] * db_update['wsu_nspw_later_4x']
         
 
-    # calculating fractional banddwidth
+    # calculating fractional bandwidth
       
     db_update['wsu_frac_bw_early'] = db_update['wsu_bandwidth_early']/db_update['wsu_freq']
     db_update['wsu_frac_bw_later_2x'] = db_update['wsu_bandwidth_later_2x']/db_update['wsu_freq']
@@ -3690,3 +3709,196 @@ def calc_sysperf(mydb,
         outname = visrate.replace('visrate','sysperf') + '_'+label
         mydb[outname]  = sysperf / 1e15 # convert to PFLOPS
         mydb['flops_per_vis_'+label] = flops_per_vis_arr # save the flops per vis
+
+
+def aggregate_gous_stats(if_db, tp_db):
+    '''
+    Purpose: aggregate the database statistics per GOUS
+
+    Input:
+    - result_if : per mous if database  as an astropy table
+    - result_tp : per mous tp database as an astropy table
+    
+    Output:
+    - result_gous : output if data base as an astropy table
+
+    Values that I want in the GOUS version of the database:
+    
+        * number of mous in GOUS (all arrays) -- DONE
+        * number of 12m MOUS in GOUS -- DONE
+        * number of 7m MOUS in GOUS -- DONE
+        * number of TP MOUS in GOUS -- DONE
+    
+        * max L80 (12m+7m) -- DONE
+        * min L80 (12m+7m) -- DONE
+    
+        * product size per gous assuming GOUS only imaging (should be equal to GOUS+MOUS - MOUS)
+        * product size per gous asuming MOUS only imaging (already have -- that's just the initial product size)
+        * product size per gous assuming GOUS + MOUS imaging
+
+        * product size per proposal assuming GOUS only imaging
+        * product size per proposal assuming MOUS only imaging
+        * product size per proposal assuming GOUS + MOUS imaging
+
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    3/15/2024   A.A. Kepley     Original Code
+
+    '''
+
+    import re
+
+    # get groups
+    mydb_by_gous = if_db.group_by('gous')
+
+    needed_keys = ['proposal_id','gous', ## first -- DONE
+                   'science_keyword','scientific_category_proposal','scientific_category', ## first -- DONE
+                   'band', ## first -- DONE
+                   'ntarget', #sum -- DONE
+                   's_fov', # max --DONE
+                   's_resolution', #min -- DONE
+                   'mosaic', ## 12m+7m or any mosaics -- done
+                   'imsize', # max - DONE
+                   'pb', # max -- DONE -- maybe should make 12m?
+                   'cell', #min -- DONE
+                   'wsu_bandwidth_spw','wsu_nspw_early','wsu_nspw_later_4x', # first -- DONE
+                   'wsu_specwidth_stepped2','wsu_chanavg_stepped2','wsu_velres_stepped2','wsu_nchan_spw_stepped2', # first -- DONE
+                   'wsu_nchan_agg_stepped2_early','wsu_nchan_agg_stepped2_later_4x', #first --DONE
+                   'wsu_datavol_early_stepped2_typical_target_tot', #sum -- DONE
+                   'wsu_datavol_early_stepped2_typical_cal', ## sum -- DONE
+                   'wsu_datavol_early_stepped2_typical_total', ## sum -- DONE
+                   'blc_datavol_typical_target_tot','blc_datavol_typical_cal','blc_datavol_typical_total', ## sum -- DONE
+                   'wsu_datavol_later_4x_stepped2_typical_target_tot', ## sum -- DONE
+                   'wsu_datavol_later_4x_stepped2_typical_cal',
+                   'wsu_datavol_later_4x_stepped2_typical_total',
+                   'wsu_datavol_later_4x_stepped2_array_target_tot','wsu_datavol_later_4x_stepped2_array_cal',
+                   'wsu_datavol_later_4x_stepped2_array_total',
+                   'blc_productsize', ## sum -- DONE
+                   'weights_all' ] ## sum -- DONE
+    
+    # create output dictionary
+    newdb_dict = {}
+    for mykey in mydb_by_gous.keys():        
+        if mykey in needed_keys:
+            newdb_dict[mykey] = []
+
+    ## add some keys for the new values here.
+    newdb_dict['n_mous_in_gous'] = []
+    newdb_dict['n_mous_in_gous_12m'] = []
+    newdb_dict['n_mous_in_gous_7m'] = []
+    newdb_dict['n_mous_in_gous_tp'] = []
+
+    newdb_dict['L80_max'] = [] 
+    newdb_dict['L80_min'] = []
+
+    newdb_dict['wsu_productsize_early_stepped2_mous_only'] = []
+    newdb_dict['wsu_productsize_early_stepped2_gous_only'] = []
+    newdb_dict['wsu_productsize_early_stepped2_mous_gous'] = []
+
+    newdb_dict['wsu_productsize_later_4x_stepped2_mous_only'] = []
+    newdb_dict['wsu_productsize_later_4x_stepped2_gous_only'] = []
+    newdb_dict['wsu_productsize_later_4x_stepped2_mous_gous'] = []
+
+    keymsg = True
+
+    # iterate over groups and calculate aggregate values
+    for (gous,mygroup) in zip(mydb_by_gous.groups.keys, mydb_by_gous.groups):
+
+
+        n_mous_tp = len(tp_db[tp_db['gous'] == gous[0]])        
+        
+        n_mous = len(mygroup) + n_mous_tp
+        n_mous_12m = len(mygroup[mygroup['array'] == '12m'])
+        n_mous_7m = len(mygroup[mygroup['array'] == '7m'])
+        
+        newdb_dict['n_mous_in_gous'].append(n_mous)
+        newdb_dict['n_mous_in_gous_12m'].append(n_mous_12m)
+        newdb_dict['n_mous_in_gous_7m'].append(n_mous_7m)
+        newdb_dict['n_mous_in_gous_tp'].append(n_mous_tp)
+        
+        for mykey in mygroup.keys():
+
+            ## L80
+            if mykey in ['L80']:
+                myval = np.max(mygroup[mykey])
+                newdb_dict['L80_max'].append(myval)
+                
+                myval = np.min(mygroup[mykey])
+                newdb_dict['L80_min'].append(myval)
+                
+            # WSU productsize
+            elif mykey in ['wsu_productsize_early_stepped2', 'wsu_productsize_later_4x_stepped2']:
+
+                # TO DO: I think that this needs to be made more subtle
+                # If n_mous == 1:
+
+                # if n_mous >1 =
+                # mous_only = sum mous
+                # gous_only = max mous
+                # mous_gous = sum mous + max mous
+
+                mysum = np.sum(mygroup[mykey])
+                mymax = np.max(mygroup[mykey])                
+                
+                if n_mous == 1:
+
+                    # mous_only=gous_only=mous_gous (basically only have mous level products)
+ 
+                    mysum = np.sum(mygroup[mykey]) # sum and max should get the same things
+                
+                    newdb_dict[mykey+'_mous_only'].append(mysum)
+                    newdb_dict[mykey+'_gous_only'].append(mysum)
+                    newdb_dict[mykey+'_mous_gous'].append(mysum)
+
+                else:
+
+                    # mous_only = sum mous
+                    # gous_only = max mous
+                    # mous_gous = sum mous + max mous
+                
+                    newdb_dict[mykey+'_mous_only'].append(mysum)
+                    newdb_dict[mykey+'_gous_only'].append(mymax)
+                    newdb_dict[mykey+'_mous_gous'].append(mymax + mysum)
+
+            # mosaic gridder
+            elif mykey in ['mosaic']:
+                # if anything is a mosaic or you are combining 7m+12m
+                combo_12m_7m = (n_mous_12m >= 1) & (n_mous_7m >= 1)                
+                myval = (np.any(mygroup['mosaic'] == 'T')) | combo_12m_7m
+                newdb_dict[mykey].append(myval)
+                
+            #sum
+            elif ((mykey in ['ntarget','weights_all']) or
+                  (re.search('wsu_datavol*typical*',mykey)) or
+                  (re.match('blc_datavol*typical*',mykey)) or
+                  (re.match('blc_productsize',mykey))):
+                
+                myval = np.sum(mygroup[mykey])
+                newdb_dict[mykey].append(myval)
+                
+            # max
+            elif mykey in ['s_fov','imsize','pb']:
+                myval = np.max(mygroup[mykey])
+                newdb_dict[mykey].append(myval)
+            #min
+            elif mykey in ['s_resolution','cell']:
+                myval = np.min(mygroup[mykey])
+                newdb_dict[mykey].append(myval)
+
+            # take first value if none of the above matches.                            
+            elif mykey in needed_keys:
+                newdb_dict[mykey].append(mygroup[mykey][0])
+                                
+            else:
+                if keymsg:
+                    print('Key aggregation not specified: ' + mykey)
+
+        keymsg = False
+
+
+    #return newdb_dict
+
+    gous_db = QTable(newdb_dict)
+
+    return gous_db
+
