@@ -25,6 +25,19 @@ wsu_chanavg_min = {1:1.0, # band 1
                    8:15.0, # band 8
                    9:20.0, # band 9
                    10:32.0} # band 10
+
+
+wsu_chanavg_min_initial = {1:4.0, # band 1
+                           2:8.0, # band 2 AKA band 2 (low)
+                           3:8.0, # band 3 AKA band 2 (high)
+                           4:5.0, # band 4
+                           5:6.0, # band 5
+                           6:8.0, # band 6
+                           7:10.0, # band 7
+                           8:15.0, # band 8
+                           9:20.0, # band 9
+                           10:32.0} # band 10
+
     
 def calc_talon_specwidth(specwidth, band, blc_velres):
     '''
@@ -3902,3 +3915,175 @@ def aggregate_gous_stats(if_db, tp_db):
 
     return gous_db
 
+#---------------------------------------------------------------------------------------------
+
+def create_initial_wsu_db(wsu_all):
+    '''
+    Purpose: create initial wsu data base version. This is based on the memos released by AMT and IST in
+    early August 2024.
+
+    
+    Major changes compared to early WSU:
+    - only band 2 is upgraded to 2x band (but this includes band 3)
+    -- all the rest of the bands have the same bandwidth as currently.
+    - tint (12m) = 6.144s
+    - nant (12m) = 36
+    - no 7m array (use filtering to achieve).
+    - dual polarization only.
+    - band dependent maximum nchan, which effectively means a different nchan average.
+        ## basically this means that bands 3 and below have more channels averaged but that the rest of the bands are unchanged.
+    
+    ## 
+    
+    Heuristic:
+    
+    - fix up array based quantities (number of antennas and integration time):
+        - create nant_initial column:
+        - create wsu_tint_initial column:    
+        - if 12m:
+             nant_initial = 36
+             wsu_tint_initial = 6.144s.
+        - if 10m:
+             nant_initial = 10? -- maybe make zero?
+             wsu_tint_initial = 9.984s.
+
+    - fix up bandwidth:
+        - create wsu_bandwidth_initial column:
+        - if band 3: # upper end of band2 competitive with current band 3 so assuming that band 3 -> upper band 2
+                - bw = 16.0
+        - if band 6:
+                - bw = 5.5 * 2 = 11
+        - if band >= 4 & band <=7
+                - bw = 8.0
+        - if band 8:
+                - bw = 8
+        - if band 9 or band 9:
+                - bw = 16
+
+    - fix up nspws:
+        - create wsu_nspw_initial column:
+            wsu_nspw_initial = wsu_bandwidth_initial / wsu_bandwidth_spw
+        ## what to do about 11 GHz bw, not divisible by 2? Could either ceiling or floor.
+
+    - fix up polarization
+        - wsu_npol_initial = 2 (for everything)
+
+    - fix up nchan_avg and other channel properites
+        - copy wsu_chanavg_stepped2 -> wsu_chanavg_stepped2_initial
+        - for each band:
+                - if wsu_chanavg_stepped2_initial < wsu_chanavg_min_initial
+                        set wsu_chanavg_min_initial
+        - wsu_specwidth_stepped2_initial = wsu_chanavg_stepped2_initial * 13.5 #kHz
+        - wsu_velres_stepped2_initial = (wsu_specwidth_stepped2_initial / wsu_freq) * speed of light
+        - wsu_nchan_spw_initial = np.floor(14880* 10  / wsu_nchanavg_stepped2_initial) ## doesn't this make more sense than what I have??
+                alternate: -wsu_nchan_spw_initial = np.floor(wsu_bandwidth_spw_initial/wsu_specwidth_stepped2_initial)
+        - wsu_nchan_agg_initial = wsu_nspw_initial * wsu_nchan_spw_initial (again 11 vs. 10 GHz could hurt)
+
+    - fix up wsu_frac_bw_initial:
+        - create column wsu_frac_bw_initial = wsu_bandwidth_initial / wsu_freq
+
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    8/16/2024   A.A. Kepley     Original Code
+
+    '''
+
+    band_list = [3,4,5,6,7,8,9,10]
+    
+    # copy to new table to avoid corrupting original data
+    new_db = wsu_all.copy()
+
+    # fix up array based quantities (number of antennas and integration time)
+    new_db.add_column(0.0, name='nant_initial')
+    new_db.add_column(0.0, name='wsu_tint_initial')
+    
+    idx = new_db['array'] == '12m'    
+    new_db['nant_initial'][idx] = 36
+    new_db['wsu_tint_initial'][idx] = 6.144 * u.s
+
+
+    idx = new_db['array'] == '7m'    
+    new_db['nant_initial'][idx] = 10
+    new_db['wsu_tint_initial'][idx] = 9.984 * u.s
+
+    # fix up bandwidth
+    new_db.add_column(0.0*u.GHz, name='wsu_bandwidth_initial')
+    for band in band_list:
+        idx = new_db['band'] == band
+        if band == 3:
+            new_db['wsu_bandwidth_initial'][idx] = 16.0 * u.GHz
+        elif band == 6:
+            new_db['wsu_bandwidth_initial'][idx] = 11.0 * u.GHz
+        elif (band >= 4) & (band <=8):
+            new_db['wsu_bandwidth_initial'][idx] = 8.0 * u.GHz
+        elif (band >=9) & (band <= 10):
+            new_db['wsu_bandwidth_initial'][idx] = 16.0 * u.GHz
+        else:
+            print('band not recognized')
+
+    # fix up nspws:
+    # TODO: should I add a floor or ceiling here to cover the band 6 case, which isn't divisible by 2
+    new_db['wsu_nspw_initial'] = new_db['wsu_bandwidth_initial'] / new_db['wsu_bandwidth_spw']
+
+    # fix up polarization
+    new_db['wsu_npol_initial'] = 2 # dual pol only
+
+    # fix up number of channels and related properties.
+    new_db['wsu_chanavg_stepped2_initial'] = new_db['wsu_chanavg_stepped2']
+    for band in band_list:
+        idx = (new_db['band'] == band)  & (new_db['wsu_chanavg_stepped2_initial'] < wsu_chanavg_min_initial[band])
+        new_db['wsu_chanavg_stepped2_initial'][idx] = wsu_chanavg_min_initial[band]
+                      
+    new_db['wsu_specwidth_stepped2_initial'] = new_db['wsu_chanavg_stepped2_initial']  * (13.5 * u.kHz)
+    new_db['wsu_velres_stepped2_initial'] = (new_db['wsu_specwidth_stepped2_initial'] / new_db['wsu_freq'].to('kHz')) * const.c.to('km/s')
+    new_db['wsu_nchan_spw_stepped2_initial'] = np.floor(new_db['wsu_bandwidth_spw'].to('kHz') / new_db['wsu_specwidth_stepped2_initial'])
+
+
+    new_db['wsu_nchan_agg_stepped2_initial'] = new_db['wsu_nchan_spw_stepped2_initial'] * new_db['wsu_nspw_initial']
+    # alternative
+    #new_db['wsu_nchan_agg_stepped2_initial'] = new_db['wsu_bandwidth_initial'].to('kHz') / new_db['wsu_specwdith_stepped2_initial']
+
+    # fix up fraction bandwidth
+
+    new_db['wsu_frac_bw_initial'] = new_db['wsu_bandwidth_initial'] / new_db['wsu_freq']
+    
+    return new_db
+
+
+def calc_initial_wsu_properties():
+    '''
+    Purpose: calculate the WSU data properties.
+
+
+    - calculate number of baselines
+            - nbase_initial = (nant_initial * (nant_initial-1))/2 ### double-check formula here.
+
+    - calculate wsu_cubesize_initial_stepped2
+    - calculate wsu_productsize_initial_stepped2
+
+    - calculate wsu_datarate_initial_stepped2_initial
+    - calculate wsu_visrate_initial_stepped2_initial
+
+
+    - calculate wsu_datavol_initial_stepped2_initial_target_tot
+    - calculate wsu_datavol_initial_stepped2_initial_cal
+    - calculate wsu_datavol_initial_stepped2_initial_total
+
+    - calculate wsu_sysperf_initial_stepped2_initial_aprojonly
+
+
+    Optional:
+    # As far as I can remember, I don't use the following anywhere.
+    - calculate wsu_nvis_initial_stepped2_initial_target_tot
+    - calculate wsu_nvis_initial_stepped2_initial_cal
+    - calculate wsu_nvis_initial_stepped2_initial_total
+
+
+
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    8/16/2024   A.A. Kepley     Original Code
+    '''
+
+    pass
