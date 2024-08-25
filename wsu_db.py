@@ -69,6 +69,8 @@ def calc_talon_specwidth(specwidth, band, blc_velres):
         for mykey in wsu_chanavg_min.keys():
             idx_band = (band == mykey)
             nmatch = np.sum(idx_band)
+            if nmatch == 0:
+                continue
             wsu_chanavg_min_array[idx_band] = np.full(nmatch,wsu_chanavg_min[mykey])
             
         idx = (chan_avg < wsu_chanavg_min_array) & (blc_velres > 0.095) & (blc_velres <= 0.5)
@@ -1192,11 +1194,15 @@ def calc_rates_for_db(mydb, array='typical',correlator='wsu',stage='early', velr
     else:
         print('Correlator name not found: ' + correlator)
                                         
-        
-    Tintegration = mydb[correlator+'_tint']
+    # set values for specific stages as needed.
+    if stage == 'initial':
+        Tintegration = mydb[correlator+'_tint'+'_'+stage]
+        Npols = mydb[correlator+'_npol'+'_'+stage]
+    else:
+        Tintegration = mydb[correlator+'_tint']
+        Npols = mydb[correlator+'_npol']
 
-    Npols = mydb[correlator+'_npol']
-    
+    # do calculation
     mydb[correlator+'_datarate_'+mylabel] = calc_datarate(Nbyte, Napc, Nant, Nchannels, Npols, Tintegration) #GB/s
     mydb[correlator+'_visrate_'+mylabel] = calc_visrate(Nant, Npols, Nchannels, Tintegration)  #Gvis/hr
 
@@ -1885,7 +1891,7 @@ def make_wsu_stats_table(mystats, fileout='test.csv'):
                 
 
 
-def make_wsu_stats_table_newstats_datarate(mystats,fileout='test.tex'):
+def make_wsu_stats_table_newstats_datarate(mystats,fileout='test.tex', add_initial_goal=False):
     '''
     Purpose: create giant csv table with stats properties
 
@@ -1901,7 +1907,25 @@ def make_wsu_stats_table_newstats_datarate(mystats,fileout='test.tex'):
 
     fout = open(fileout,'w')
 
-    tablehead = '''\definecolor{myband}{RGB}{255,235,205}
+    if add_initial_goal:
+        stage_list = ['initial','early','goal','later_4x']
+        tablehead = '''\definecolor{myband}{RGB}{255,235,205}
+\definecolor{my2x}{RGB}{182, 208, 226}
+\definecolor{my4x}{RGB}{251, 206, 177}
+        
+\\begin{sidewaystable}
+\centering
+\caption{Overview of Data Rate Properties for  WSU \label{tab:overview_datarates}}
+\\begin{tblr}{colspec={|[2pt]Q[l]|Q[l]|[1pt]c|c|c|c|c|c|c|c|c|c|c|c|[2pt]},
+width=\\textwidth,
+cells = {font=\scriptsize}}
+\\hline[2pt]
+\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c} IWS & & & \SetCell[c=3]{c,bg=my2x} MWS  & & & \SetCell[c=3]{c,} GWS & & & \SetCell[c=3]{c,bg=my4x} FWS & &   \\\\ \hline[1pt]
+& & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both \\\\ \hline[1pt]
+'''
+    else:
+        stage_list = ['early','later_4x']
+        tablehead = '''\definecolor{myband}{RGB}{255,235,205}
 \definecolor{my2x}{RGB}{182, 208, 226}
 \definecolor{my4x}{RGB}{251, 206, 177}
 
@@ -1917,6 +1941,8 @@ cells = {font=\scriptsize}}
 '''
 
     fout.write(tablehead)
+
+
     
     for myquant in ['datarate','nchan_agg']:
         if myquant == 'datarate':
@@ -1946,11 +1972,14 @@ cells = {font=\scriptsize}}
 
 
 
-            for mystage in ['early','later_4x']:
+            for mystage in stage_list:
                 
                 for myarray in ['12m','7m','both']:
                     if myquant == 'datarate':
-                        myfullquant = 'wsu_datarate_'+mystage+'_stepped2_typical'
+                        if mystage == 'initial':
+                            myfullquant = 'wsu_datarate_'+mystage+'_stepped2_initial'
+                        else:
+                            myfullquant = 'wsu_datarate_'+mystage+'_stepped2_typical'
                         myquantunit = mystats[myfullquant]['unit']
                         outstr = outstr + "& ${:5.3f}$".format(mystats[myfullquant][myarray][myval+"_mean"])
                         
@@ -1973,7 +2002,14 @@ cells = {font=\scriptsize}}
             outstr = "\hline \n"
             fout.write(outstr)
 
-    tablefoot = '''
+    if add_initial_goal:
+        tablefoot = '''
+\hline[2pt]
+\end{tblr}
+\end{sidewaystable}   
+    '''
+    else:
+        tablefoot = '''
 \hline[2pt]
 \end{tblr}
 \end{table}   
@@ -1983,7 +2019,7 @@ cells = {font=\scriptsize}}
     fout.close()
 
     
-def make_wsu_stats_table_newstats_datavol(mystats,fileout='test2.tex'):
+def make_wsu_stats_table_newstats_datavol(mystats,fileout='test2.tex',add_initial_goal=False):
     '''
     Purpose: create giant csv table with stats properties
 
@@ -1996,9 +2032,28 @@ def make_wsu_stats_table_newstats_datavol(mystats,fileout='test2.tex'):
     ----------------------------------------------------
     10/31/2023  A.A. Kepley     Original Code. Also Happy Halloween!
     '''
+
     fout = open(fileout,'w')
 
-    tablehead = '''\definecolor{myband}{RGB}{255,235,205}
+    if add_initial_goal:
+        stage_list = ['initial','early','goal','later_4x']
+        tablehead = '''\definecolor{myband}{RGB}{255,235,205}
+\definecolor{my2x}{RGB}{182, 208, 226}
+\definecolor{my4x}{RGB}{251, 206, 177}
+
+\\begin{sidewaystable}
+\centering
+\caption{Overview of Data Volume Properties for WSU \label{tab:overview_datavol}}
+\\begin{tblr}{colspec={|[2pt]Q[l]|Q[l]|[1pt]c|c|c|c|c|c|c|c|c|c|c|c|[2pt]},
+width=\\textwidth,
+cells = {font=\scriptsize}}
+\\hline[2pt]
+\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c} IWS & & & \SetCell[c=3]{c,bg=my2x} MWS  & & & \SetCell[c=3]{c,} GWS & & & \SetCell[c=3]{c,bg=my4x} FWS & &   \\\\ \hline[1pt]
+& & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both \\\\ \hline[1pt]
+'''        
+    else:
+        stage_list = ['early','later_4x']
+        tablehead = '''\definecolor{myband}{RGB}{255,235,205}
 \definecolor{my2x}{RGB}{182, 208, 226}
 \definecolor{my4x}{RGB}{251, 206, 177}
 
@@ -2046,21 +2101,27 @@ cells = {font=\scriptsize}}
             else:
                 print("Value unknown: "+myval)
 
-            for mystage in ['early','later_4x']:
+            for mystage in stage_list:
                 
                 for myarray in ['12m','7m','both']:
                     if myquant == 'datavol_total':
-                        myfullquant = 'wsu_datavol_'+mystage+'_stepped2_typical_total'
+                        if mystage == 'initial':
+                            myfullquant = 'wsu_datavol_'+mystage+'_stepped2_initial_total'
+                        else:
+                            myfullquant = 'wsu_datavol_'+mystage+'_stepped2_typical_total'
                         #myquantunit = mystats[myfullquant]['unit']
                         outstr = outstr + "& ${:7.3f}$".format(mystats[myfullquant][myarray][myval+"_mean"]/scale)                
                     elif myquant == 'datavol_target_tot':
-                        myfullquant = 'wsu_datavol_'+mystage+'_stepped2_typical_target_tot'
+                        if mystage == 'initial':
+                            myfullquant = 'wsu_datavol_'+mystage+'_stepped2_initial_target_tot'
+                        else:
+                            myfullquant = 'wsu_datavol_'+mystage+'_stepped2_typical_target_tot'
                         #myquantunit = mystats[myfullquant]['unit']
                         outstr = outstr + "& ${:7.3f}$".format(mystats[myfullquant][myarray][myval+"_mean"]/scale)
                     elif myquant == 'productsize':
                         myfullquant = 'wsu_productsize_'+mystage+'_stepped2'
                         #myquantunit = mystats[myfullquant]['unit']
-                        outstr = outstr + "& ${:7.3f}$".falcormat(mystats[myfullquant][myarray][myval+"_mean"]/scale)                
+                        outstr = outstr + "& ${:7.3f}$".format(mystats[myfullquant][myarray][myval+"_mean"]/scale)                
                     else:
                         print('Quantity unknown: '+myquant)
 
@@ -2068,23 +2129,34 @@ cells = {font=\scriptsize}}
             fout.write(outstr)
 
             if myval == 'max':
-                fout.write("\\cline{2-8} \n")
+                if add_initial_goal:
+                    fout.write("\\cline{2-14} \n")
+                else:
+                    fout.write("\\cline{2-8} \n")
             
         if myquant != 'productsize': 
             outstr = "\hline \n"
             fout.write(outstr)
 
-    tablefoot = '''
+    if add_initial_goal:
+        tablefoot = '''
+\hline[2pt]
+\end{tblr}
+\end{sidewaystable}   
+        '''
+    else:
+        tablefoot = '''
 \hline[2pt]
 \end{tblr}
 \end{table}   
-    '''
+'''
 
     fout.write(tablefoot)
     fout.close()
 
 
-def make_wsu_stats_table_newstats_sysperf(mystats, fileout='test.tex'):
+def make_wsu_stats_table_newstats_sysperf(mystats, add_initial_goal=False,
+                                          fileout='test.tex'):
     '''
     Purpose: create a giant csv table with sysperf related stats properties
 
@@ -2100,7 +2172,26 @@ def make_wsu_stats_table_newstats_sysperf(mystats, fileout='test.tex'):
     
     fout = open(fileout,'w')
 
-    tablehead = '''\definecolor{myband}{RGB}{255,235,205}
+    if add_initial_goal:
+        stage_list = ['initial','early','goal','later_4x']
+        tablehead = '''\definecolor{myband}{RGB}{255,235,205}
+\definecolor{my2x}{RGB}{182, 208, 226}
+\definecolor{my4x}{RGB}{251, 206, 177}
+
+\\begin{sidewaystable}
+\centering
+\caption{Overview of System Performance Related Quantities for  WSU \label{tab:overview_sysperf}}
+\\begin{tblr}{colspec={|[2pt]Q[l]|Q[l]|[1pt]c|c|c|c|c|c|c|c|c|c|c|c|[2pt]},
+width=\\textwidth,
+cells = {font=\scriptsize}}
+\\hline[2pt]
+\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c} IWS & & & \SetCell[c=3]{c,bg=my2x} MWS  & & & \SetCell[c=3]{c,} GWS & & & \SetCell[c=3]{c,bg=my4x} FWS & &   \\\\ \hline[1pt]
+& & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both \\\\ \hline[1pt]
+'''
+
+    else:
+        stage_list = ['early','later_4x']
+        tablehead = '''\definecolor{myband}{RGB}{255,235,205}
 \definecolor{my2x}{RGB}{182, 208, 226}
 \definecolor{my4x}{RGB}{251, 206, 177}
 
@@ -2143,16 +2234,25 @@ cells = {font=\scriptsize}}
                 print("Value unknown: "+myval)
 
             
-            for mystage in ['early','later_4x']:            
+            for mystage in stage_list:            
                 for myarray in ['12m','7m','both']:
                     if myquant == 'datarate':
-                        myfullquant = 'wsu_datarate_'+mystage+'_stepped2_typical'
+                        if mystage == 'initial':
+                            myfullquant = 'wsu_datarate_'+mystage+'_stepped2_initial'
+                        else:
+                            myfullquant = 'wsu_datarate_'+mystage+'_stepped2_typical'
                         outstr = outstr + "& ${:5.3f}$".format(mystats[myfullquant][myarray][myval+"_mean"])
                     elif myquant == 'visrate':
-                        myfullquant = 'wsu_visrate_'+mystage+'_stepped2_typical'
+                        if mystage == 'initial':
+                            myfullquant = 'wsu_visrate_'+mystage+'_stepped2_initial'
+                        else:
+                            myfullquant = 'wsu_visrate_'+mystage+'_stepped2_typical'
                         outstr = outstr + "& ${:5.1f}$".format(mystats[myfullquant][myarray][myval+"_mean"])
                     elif myquant == 'sysperf':
-                        myfullquant = 'wsu_sysperf_'+mystage+'_stepped2_typical_aprojonly'
+                        if mystage == 'initial':
+                            myfullquant = 'wsu_sysperf_'+mystage+'_stepped2_initial_aprojonly'
+                        else:
+                            myfullquant = 'wsu_sysperf_'+mystage+'_stepped2_typical_aprojonly'
                         outstr = outstr + "& $  {:5.3f} $".format(mystats[myfullquant][myarray][myval+"_mean"])
                     else:
                         print('Quantity unknown: '+myquant)
@@ -2164,7 +2264,15 @@ cells = {font=\scriptsize}}
             outstr = "\hline \n"
             fout.write(outstr)
 
-    tablefoot = '''
+    if add_initial_goal:
+        tablefoot = '''
+\hline[2pt]
+\end{tblr}
+\end{sidewaystable}   
+'''
+
+    else:
+        tablefoot = '''
 \hline[2pt]
 \end{tblr}
 \end{table}   
@@ -2418,7 +2526,8 @@ cells = {font=\scriptsize}}
             scale= 0.001
         elif myquant == 'visrate':
             myquant_label = 'Visibility Rate'
-            myquant_unit = '(Tvis/hr)'
+            ## bug here that made it into original document. Should have been Mvis/hr. I put Tvis/hr.
+            myquant_unit = '(Mvis/hr)' # going from Gvis / hr / 0.001
             scale=0.001
             #scale=1
         elif myquant == 'sysperf':            
@@ -2847,7 +2956,9 @@ def remove_projects(mydb, array='12m', time_frac=0.05):
     return newdb, time_accum 
 
 
-def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr):
+def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr,
+              add_initial=False,
+              add_goal=False):
     '''
     Purpose: Add band1 and band2 information into data base by
     scaling from band 3.
@@ -2862,6 +2973,7 @@ def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr):
     Date        Programmer      Description of Changes
     --------------------------------------------------------
     9/20/2023  A.A. Kepley     Original Code
+    8/23/2024  A.A. Kepley      Added initial and goal stages
     '''
 
     # fiducial band 1 and 2 frequencies
@@ -2904,13 +3016,21 @@ def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr):
             # setup the band 1 and 2 properties.
             if band == 1.0:
                 new_info['wsu_freq'] = band1_freq
+                if add_initial:
+                    new_info['wsu_bandwidth_initial'] = 8.0*u.GHz ## added based on AMT memo
                 new_info['wsu_bandwidth_early'] = 8.0*u.GHz ## originally had this as 16.0GHz, but based on data rate ramp up, needs to be 8GHz for early.
+                if add_goal:
+                    new_info['wsu_bandwidth_goal'] = 8.0*u.GHz ## added based on AMT memo
                 new_info['wsu_bandwidth_later_2x'] = 16.0*u.GHz
                 new_info['wsu_bandwidth_later_4x'] = 16.0*u.GHz ## Can't be upgraded beyond 16 GHz.
                 
             if band == 2.0:
                 new_info['wsu_freq'] = band2_freq
+                if add_initial:
+                    new_info['wsu_bandwidth_initial'] = 16.0*u.GHz ## added based on AMT memo
                 new_info['wsu_bandwidth_early'] = 16.0*u.GHz
+                if add_goal:
+                    new_info['wsu_bandwidth_goal'] = 16.0*u.GHz ## added based on AMT memo
                 new_info['wsu_bandwidth_later_2x'] = 16.0*u.GHz
                 new_info['wsu_bandwidth_later_4x'] = 32.0*u.GHz ## Can get 32GHz.
 
@@ -2935,13 +3055,20 @@ def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr):
                               'blc_nchan_agg','blc_nchan_max',
                               'blc_bandwidth_max','blc_bandwidth_agg'])
 
+    # fix up polarization for initial
+    if add_initial:
+        db_update['wsu_npol_initial'] = 2 # dual pol only
+
     # calculating the number of spectral windows this way allows me to easily propagate any spw related changes.    
+    if add_initial:
+        db_update['wsu_nspw_initial'] = np.ceil(db_update['wsu_bandwidth_initial'] / db_update['wsu_bandwidth_spw']).value
     db_update['wsu_nspw_early'] = np.round(db_update['wsu_bandwidth_early']/db_update['wsu_bandwidth_spw']).value
     db_update['wsu_nspw_later_2x'] = np.round(db_update['wsu_bandwidth_later_2x']/db_update['wsu_bandwidth_spw']).value
+    if add_goal:
+        db_update['wsu_nspw_goal'] = np.round(db_update['wsu_bandwidth_goal'] / db_update['wsu_bandwidth_spw']).value
     db_update['wsu_nspw_later_4x'] = np.round(db_update['wsu_bandwidth_later_4x']/db_update['wsu_bandwidth_spw']).value
-
-
-    #calculating new specwidth, velres, and chanavg. 
+    
+    #calculating new specwidth, velres, and chanavg. for early, later_2x, and later_4x
     for veltype in ['finest','stepped','stepped2']:
         vel_res_tmp = np.round(db_update['wsu_velres_'+veltype],1) ## need the round to get the steps ## has units attachd.
         specwidth_tmp = ((vel_res_tmp / const.c.to('km/s')) * db_update['wsu_freq'].to('Hz')).to('kHz')
@@ -2970,17 +3097,61 @@ def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr):
         db_update['wsu_nchan_agg_'+veltype+'_later_2x'] = db_update['wsu_nchan_spw_'+veltype] * db_update['wsu_nspw_later_2x']
         db_update['wsu_nchan_agg_'+veltype+'_later_4x'] = db_update['wsu_nchan_spw_'+veltype] * db_update['wsu_nspw_later_4x']
         
+    if add_initial:
+        # fix up channels for initial restrictions
+        db_update['wsu_chanavg_stepped2_initial'] = db_update['wsu_chanavg_stepped2']
+        for band in band_list:
+            idx = (db_update['band'] == band)  & (db_update['wsu_chanavg_stepped2_initial'] < wsu_chanavg_min_initial[band])
+            db_update['wsu_chanavg_stepped2_initial'][idx] = wsu_chanavg_min_initial[band]
+            
+            db_update['wsu_specwidth_stepped2_initial'] = db_update['wsu_chanavg_stepped2_initial']  * (13.5 * u.kHz)
+            db_update['wsu_velres_stepped2_initial'] = (db_update['wsu_specwidth_stepped2_initial'] / db_update['wsu_freq'].to('kHz')) * const.c.to('km/s')
+            db_update['wsu_nchan_spw_stepped2_initial'] = np.floor(db_update['wsu_bandwidth_spw'].to('kHz') / db_update['wsu_specwidth_stepped2_initial'])
+            db_update['wsu_nchan_agg_stepped2_initial'] = db_update['wsu_nchan_spw_stepped2_initial'] * db_update['wsu_nspw_initial']
+        
+    # calculate goal aggegrate channels (stepped2 only).
+    if add_goal:
+        db_update['wsu_nchan_agg_stepped2_goal'] = db_update['wsu_nchan_spw_stepped2'] * db_update['wsu_nspw_goal']
+        
 
     # calculating fractional bandwidth
-      
+    if add_initial:
+        db_update['wsu_frac_bw_initial'] = db_update['wsu_bandwidth_initial'] / new_db['wsu_freq']
     db_update['wsu_frac_bw_early'] = db_update['wsu_bandwidth_early']/db_update['wsu_freq']
     db_update['wsu_frac_bw_later_2x'] = db_update['wsu_bandwidth_later_2x']/db_update['wsu_freq']
+    if add_goal:
+        db_update['wsu_frac_bw_goal'] = db_update['wsu_bandwidth_goal'] / db_update['wsu_freq']
     db_update['wsu_frac_bw_later_4x'] = db_update['wsu_bandwidth_later_4x']/db_update['wsu_freq']
     db_update['wsu_frac_bw_spw'] = db_update['wsu_bandwidth_spw']/db_update['wsu_freq']
     
         
     ## calculate data rates, data volumes, and cube sizes
     add_rates_to_db(db_update, wsu_only=True, permous=True)
+
+    if add_initial:
+        db_update['nbase_'+'initial'] = db_update['nant_initial'] * (db_update['nant_initial']-1)/2.0
+
+        # calculate data rates, visibility rates,  data volumes, and number of visibilities
+        calc_rates_for_db(db_update,array='initial',correlator='wsu', stage='initial', velres='stepped2',agg=True, permous=True)
+
+        # calculate the cube size
+        db_update['wsu_cubesize_initial_stepped2'] = calc_cube_size(db_update['imsize'],db_update['wsu_nchan_spw_stepped2_initial'])
+        
+        # calculate the product size
+        # 2.0 * (aggregate cube size + number of mfs images * size of mfs image)
+        agg_cube = calc_cube_size(db_update['imsize'],db_update['wsu_nchan_agg_stepped2_initial'])
+        db_update['wsu_productsize_initial_stepped2'] = 2.0 * ( agg_cube + db_update['mfssize'] * db_update['wsu_nspw_initial'])
+
+    if add_goal:
+        # calculate data rates, visibility rates,  data volumes, and number of visibilities
+        calc_rates_for_db(db_update,array='typical',correlator='wsu', stage='goal', velres='stepped2',agg=True, permous=True)
+        
+        # calculate the product size
+        # 2.0 * (aggregate cube size + number of mfs images * size of mfs image)
+        agg_cube = calc_cube_size(db_update['imsize'],db_update['wsu_nchan_agg_stepped2_goal'])
+        db_update['wsu_productsize_goal_stepped2'] = 2.0 * ( agg_cube + db_update['mfssize'] * db_update['wsu_nspw_goal'])
+        
+    
 
     # calculate required system performance
     calc_sysperf(db_update,
@@ -2994,7 +3165,24 @@ def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr):
                  wproject=False)
 
 
-    
+
+    if add_initial:
+        calc_sysperf(db_update,
+                     label='aprojonly',
+                     mosaic_aproject=True,
+                     wproject=False,
+                     visrate_list = ['wsu_visrate_initial_stepped2_initial'])
+
+    if add_goal:
+        calc_sysperf(db_update,
+                     label='aprojonly',
+                     mosaic_aproject=True,
+                     wproject=False,
+                     visrate_list = ['wsu_visrate_goal_stepped2_typical'])
+
+
+
+        
     # get rid of the full pol cases requesting the highest resolution.
     ## these are rare, but possible.
     bad_idx = ( ((db_update['band'] == 1.0) & (db_update['wsu_chanavg_stepped2'] == 1.0) & (db_update['wsu_npol'] == 4)) |
@@ -3115,9 +3303,6 @@ def calculate_dist(outDir='data/sample_band1_band2',
     import re
     
     sample_list = glob.glob(os.path.join(outDir,filename+"_*.ecsv"))
-
-
-
 
     myresults = {}
     myresults_hist = {}
@@ -3254,7 +3439,37 @@ def calculate_dist(outDir='data/sample_band1_band2',
 
 
 def calc_wsu_stats_allsamples(outDir='data/sample_band1_band2',
-                              filename='wsu_datarates_mit_per_mous_band12_20231002'):
+                              filename='wsu_datarates_mit_per_mous_band12_20231002',
+                              quantity_list = ['blc_nchan_agg',
+                                               'blc_nspw',
+                                               'blc_cubesize',
+                                               'blc_productsize',
+                                               'blc_datarate_typical',
+                                               'blc_visrate_typical',
+                                               'blc_datavol_typical_target_tot',
+                                               'blc_datavol_typical_cal',
+                                               'blc_datavol_typical_total',                    
+                                               'wsu_nchan_agg_stepped2_early',
+                                               'wsu_nchan_agg_stepped2_later_4x',
+                                               'wsu_nspw_early','wsu_nspw_later_4x',
+                                               'wsu_cubesize_stepped2',
+                                               'wsu_productsize_early_stepped2',                                  
+                                               'wsu_datarate_early_stepped2_typical', # typical number of antennas
+                                               'wsu_visrate_early_stepped2_typical',                                  
+                                               'wsu_datavol_early_stepped2_typical_target_tot',
+                                               'wsu_datavol_early_stepped2_typical_cal',
+                                               'wsu_datavol_early_stepped2_typical_total',
+                                               'wsu_productsize_later_4x_stepped2',                                  
+                                               'wsu_datarate_later_4x_stepped2_typical',
+                                               'wsu_visrate_later_4x_stepped2_typical',
+                                               'wsu_datavol_later_4x_stepped2_typical_target_tot',
+                                               'wsu_datavol_later_4x_stepped2_typical_cal',
+                                               'wsu_datavol_later_4x_stepped2_typical_total',
+                                               'wsu_productsize_later_4x_stepped2',                                  
+                                               'blc_sysperf_typical_aprojonly',
+                                               'wsu_sysperf_early_stepped2_typical_aprojonly',
+                                               'wsu_sysperf_later_2x_stepped2_typical_aprojonly',
+                                               'wsu_sysperf_later_4x_stepped2_typical_aprojonly']):
     '''
     Purpose: calcuate the statistics over all the realizations of the WSU
     distribution with Bands 1 and 2. 
@@ -3278,84 +3493,6 @@ def calc_wsu_stats_allsamples(outDir='data/sample_band1_band2',
     import re
     
     sample_list = glob.glob(os.path.join(outDir,filename+"_*.ecsv"))
-
-    quantity_list = ['blc_nchan_agg',
-                     'blc_nspw',
-                     'blc_cubesize',
-                     'blc_productsize',
-                     'blc_datarate_typical',
-                     'blc_visrate_typical',
-                     'blc_datavol_typical_target_tot',
-                     'blc_datavol_typical_cal',
-                     'blc_datavol_typical_total',                    
-                     'wsu_nchan_agg_stepped2_early',
-                     'wsu_nchan_agg_stepped2_later_4x',
-                     'wsu_nspw_early','wsu_nspw_later_4x',
-                     'wsu_cubesize_stepped2',
-                     'wsu_productsize_early_stepped2',                                  
-                     'wsu_datarate_early_stepped2_typical', # typical number of antennas
-                     'wsu_visrate_early_stepped2_typical',                                  
-                     'wsu_datavol_early_stepped2_typical_target_tot',
-                     'wsu_datavol_early_stepped2_typical_cal',
-                     'wsu_datavol_early_stepped2_typical_total',
-                     #'wsu_nvis_early_stepped2_typical_target_tot',
-                     #'wsu_nvis_early_stepped2_typical_cal',
-                     #'wsu_nvis_early_stepped2_typical_total',
-                     #'wsu_productsize_later_2x_stepped2',                                  
-                     #'wsu_datarate_later_2x_stepped2_typical',
-                     #'wsu_visrate_later_2x_stepped2_typical',                                  
-                     #'wsu_datavol_later_2x_stepped2_typical_target_tot',
-                     #'wsu_datavol_later_2x_stepped2_typical_cal',
-                     #'wsu_datavol_later_2x_stepped2_typical_total',
-                     #'wsu_nvis_later_2x_stepped2_typical_target_tot',
-                     #'wsu_nvis_later_2x_stepped2_typical_cal',
-                     #'wsu_nvis_later_2x_stepped2_typical_total',
-                     'wsu_productsize_later_4x_stepped2',                                  
-                     'wsu_datarate_later_4x_stepped2_typical',
-                     'wsu_visrate_later_4x_stepped2_typical',
-                     'wsu_datavol_later_4x_stepped2_typical_target_tot',
-                     'wsu_datavol_later_4x_stepped2_typical_cal',
-                     'wsu_datavol_later_4x_stepped2_typical_total',
-                     #'wsu_nvis_later_4x_stepped2_typical_target_tot',
-                     #'wsu_nvis_later_4x_stepped2_typical_cal',
-                     #'wsu_nvis_later_4x_stepped2_typical_total',                     
-                     #'wsu_datarate_early_stepped2_array', ## peak number of antenna (total array)
-                     #'wsu_visrate_early_stepped2_array',                                  
-                     #'wsu_datavol_early_stepped2_array_target_tot',
-                     #'wsu_datavol_early_stepped2_array_cal',
-                     #'wsu_datavol_early_stepped2_array_total',
-                     #'wsu_nvis_early_stepped2_array_target_tot',
-                     #'wsu_nvis_early_stepped2_array_cal',
-                     #'wsu_nvis_early_stepped2_array_total',
-                     #'wsu_productsize_later_2x_stepped2',                                  
-                     #'wsu_datarate_later_2x_stepped2_array',
-                     #'wsu_visrate_later_2x_stepped2_array',                                  
-                     #'wsu_datavol_later_2x_stepped2_array_target_tot',
-                     #'wsu_datavol_later_2x_stepped2_array_cal',
-                     #'wsu_datavol_later_2x_stepped2_array_total',
-                     #'wsu_nvis_later_2x_stepped2_array_target_tot',
-                     #'wsu_nvis_later_2x_stepped2_array_cal',
-                     #'wsu_nvis_later_2x_stepped2_array_total',
-                     'wsu_productsize_later_4x_stepped2',                                  
-                     #'wsu_datarate_later_4x_stepped2_array',
-                     #'wsu_visrate_later_4x_stepped2_array',                                  
-                     #'wsu_datavol_later_4x_stepped2_array_target_tot',
-                     #'wsu_datavol_later_4x_stepped2_array_cal',
-                     #'wsu_datavol_later_4x_stepped2_array_total',
-                     #'wsu_nvis_later_4x_stepped2_array_target_tot',
-                     #'wsu_nvis_later_4x_stepped2_array_cal',
-                     #'wsu_nvis_later_4x_stepped2_array_total',
-                     #'blc_sysperf_typical_allgrid',
-                     #'flops_per_vis_allgrid',
-                     #'wsu_sysperf_early_stepped2_typical_allgrid',
-                     #'wsu_sysperf_later_2x_stepped2_typical_allgrid',
-                     #'wsu_sysperf_later_4x_stepped2_typical_allgrid',
-                     'blc_sysperf_typical_aprojonly',
-                     #'flops_per_vis_aprojonly',
-                     'wsu_sysperf_early_stepped2_typical_aprojonly',
-                     'wsu_sysperf_later_2x_stepped2_typical_aprojonly',
-                     'wsu_sysperf_later_4x_stepped2_typical_aprojonly']
-
 
     myresults_stats = {}
 
@@ -3936,6 +4073,8 @@ def create_initial_wsu_db(wsu_all):
     ## 
     
     Heuristic:
+
+    INITIAL:
     
     - fix up array based quantities (number of antennas and integration time):
         - create nant_initial column:
@@ -3983,6 +4122,17 @@ def create_initial_wsu_db(wsu_all):
         - create column wsu_frac_bw_initial = wsu_bandwidth_initial / wsu_freq
 
 
+    MINIMUM WSU:
+     ~ early WSU (if there are only peak data rate restrictions, not number of channel averaging restrictions)
+    
+
+    GOAL:
+    bands 2, 6,8, and 7 upgraded + 4x BW
+
+    FULL:
+    ~ later WSU
+    
+    
     Date        Programmer      Description of Changes
     --------------------------------------------------
     8/16/2024   A.A. Kepley     Original Code
@@ -3994,9 +4144,12 @@ def create_initial_wsu_db(wsu_all):
     # copy to new table to avoid corrupting original data
     new_db = wsu_all.copy()
 
+    ## INITIAL
+    
     # fix up array based quantities (number of antennas and integration time)
     new_db.add_column(0.0, name='nant_initial')
     new_db.add_column(0.0, name='wsu_tint_initial')
+    new_db['wsu_tint_initial'] =  new_db['wsu_tint_initial'] * u.s
     
     idx = new_db['array'] == '12m'    
     new_db['nant_initial'][idx] = 36
@@ -4024,7 +4177,7 @@ def create_initial_wsu_db(wsu_all):
 
     # fix up nspws:
     # TODO: should I add a floor or ceiling here to cover the band 6 case, which isn't divisible by 2
-    new_db['wsu_nspw_initial'] = new_db['wsu_bandwidth_initial'] / new_db['wsu_bandwidth_spw']
+    new_db['wsu_nspw_initial'] = np.ceil(new_db['wsu_bandwidth_initial'] / new_db['wsu_bandwidth_spw'])
 
     # fix up polarization
     new_db['wsu_npol_initial'] = 2 # dual pol only
@@ -4042,48 +4195,131 @@ def create_initial_wsu_db(wsu_all):
 
     new_db['wsu_nchan_agg_stepped2_initial'] = new_db['wsu_nchan_spw_stepped2_initial'] * new_db['wsu_nspw_initial']
     # alternative
-    #new_db['wsu_nchan_agg_stepped2_initial'] = new_db['wsu_bandwidth_initial'].to('kHz') / new_db['wsu_specwdith_stepped2_initial']
+    #new_db['wsu_nchan_agg_stepped2_initial'] = new_db['wsu_bandwidth_initial'].to('kHz') / new_db['wsu_specwidth_stepped2_initial']
 
     # fix up fraction bandwidth
 
     new_db['wsu_frac_bw_initial'] = new_db['wsu_bandwidth_initial'] / new_db['wsu_freq']
+
+    ## GOAL
+
+    # fix up bandwidth
+    new_db.add_column(0.0*u.GHz, name='wsu_bandwidth_goal')
+    for band in band_list:
+        idx = new_db['band'] == band
+
+        ## Bands 2 (upper end = current band 3), 6, 8, and 7 are upgraded here.
+        ## Bands 1, 4, 5, 9, and 10 retain their current values.
+        if band == 3:
+            ## assuming upper part of band 2 = band 2
+            new_db['wsu_bandwidth_goal'][idx] = 32.0 * u.GHz
+        elif band == 6:
+            new_db['wsu_bandwidth_goal'][idx] = 32.0 * u.GHz
+        elif band == 8:
+            new_db['wsu_bandwidth_goal'][idx] = 32.0 * u.GHz
+        elif band == 7:
+            new_db['wsu_bandwidth_goal'][idx] = 32.0 * u.GHz            
+        elif (band >= 4) & (band <=5):
+            new_db['wsu_bandwidth_goal'][idx] = 8.0 * u.GHz
+        elif (band >=9) & (band <= 10):
+            new_db['wsu_bandwidth_goal'][idx] = 16.0 * u.GHz
+        else:
+            print('band not recognized')
+
+    # fix up nspws:
+    new_db['wsu_nspw_goal'] = new_db['wsu_bandwidth_goal'] / new_db['wsu_bandwidth_spw']
+
+    # fix up number of channels and related properties.
+    ## TODO: need to change this depending on how the channelization works out.
+    #new_db['wsu_chanavg_stepped2_full'] = new_db['wsu_chanavg_stepped2']
+    #for band in band_list:
+    #    idx = (new_db['band'] == band)  & (new_db['wsu_chanavg_stepped2_initial'] < wsu_chanavg_min[band])
+    #    new_db['wsu_chanavg_stepped2_initial'][idx] = wsu_chanavg_min_initial[band]
+                      
+    new_db['wsu_nchan_agg_stepped2_goal'] = new_db['wsu_nchan_spw_stepped2'] * new_db['wsu_nspw_goal']
+    # alternative
+    #new_db['wsu_nchan_agg_stepped2_initial'] = new_db['wsu_bandwidth_initial'].to('kHz') / new_db['wsu_specwdith_stepped2_initial']
+
+    # fix up fraction bandwidth
+    new_db['wsu_frac_bw_goal'] = new_db['wsu_bandwidth_goal'] / new_db['wsu_freq']
     
     return new_db
 
 
-def calc_initial_wsu_properties():
+def add_initial_wsu_properties(input_db):
     '''
     Purpose: calculate the WSU data properties.
 
 
-    - calculate number of baselines
-            - nbase_initial = (nant_initial * (nant_initial-1))/2 ### double-check formula here.
+    - calculate number of baselines  -- DONE
+            - nbase_initial = (nant_initial * (nant_initial-1))/2 
+    
+    - calculate wsu_datarate_initial_stepped2_initial -- DONE
+    - calculate wsu_visrate_initial_stepped2_initial -- DONE
 
-    - calculate wsu_cubesize_initial_stepped2
-    - calculate wsu_productsize_initial_stepped2
+    - calculate wsu_datavol_initial_stepped2_initial_target_tot -- DONE
+    - calculate wsu_datavol_initial_stepped2_initial_cal -- DONE
+    - calculate wsu_datavol_initial_stepped2_initial_total --- DONE
 
-    - calculate wsu_datarate_initial_stepped2_initial
-    - calculate wsu_visrate_initial_stepped2_initial
-
-
-    - calculate wsu_datavol_initial_stepped2_initial_target_tot
-    - calculate wsu_datavol_initial_stepped2_initial_cal
-    - calculate wsu_datavol_initial_stepped2_initial_total
+    - calculate wsu_cubesize_initial_stepped2 -- DONE
+    - calculate wsu_productsize_initial_stepped2 -- DONE
 
     - calculate wsu_sysperf_initial_stepped2_initial_aprojonly
 
-
-    Optional:
-    # As far as I can remember, I don't use the following anywhere.
-    - calculate wsu_nvis_initial_stepped2_initial_target_tot
-    - calculate wsu_nvis_initial_stepped2_initial_cal
-    - calculate wsu_nvis_initial_stepped2_initial_total
-
-
+    
 
     Date        Programmer      Description of Changes
     ---------------------------------------------------
     8/16/2024   A.A. Kepley     Original Code
     '''
 
-    pass
+    from large_cubes import calc_cube_size
+    
+    # copy to new table to avoid corrupting original data
+    new_db = input_db.copy()
+
+    # INITAL
+    
+    new_db['nbase_'+'initial'] = new_db['nant_initial'] * (new_db['nant_initial']-1)/2.0
+
+    # calculate data rates, visibility rates,  data volumes, and number of visibilities
+    calc_rates_for_db(new_db,array='initial',correlator='wsu', stage='initial', velres='stepped2',agg=True, permous=True)
+
+    # calculate the cube size
+    new_db['wsu_cubesize_initial_stepped2'] = calc_cube_size(new_db['imsize'],new_db['wsu_nchan_spw_stepped2_initial'])
+
+    # calculate the product size
+    # 2.0 * (aggregate cube size + number of mfs images * size of mfs image)
+    agg_cube = calc_cube_size(new_db['imsize'],new_db['wsu_nchan_agg_stepped2_initial'])
+    new_db['wsu_productsize_initial_stepped2'] = 2.0 * ( agg_cube + new_db['mfssize'] * new_db['wsu_nspw_initial'])
+
+    # calculate the required system performance
+    calc_sysperf(new_db,
+                 label='aprojonly',
+                 mosaic_aproject=True,
+                 wproject=False,
+                 visrate_list = ['wsu_visrate_initial_stepped2_initial'])
+
+
+
+    # GOAL
+    # calculate data rates, visibility rates,  data volumes, and number of visibilities
+    calc_rates_for_db(new_db,array='typical',correlator='wsu', stage='goal', velres='stepped2',agg=True, permous=True)
+
+    # calculate the product size
+    # 2.0 * (aggregate cube size + number of mfs images * size of mfs image)
+    agg_cube = calc_cube_size(new_db['imsize'],new_db['wsu_nchan_agg_stepped2_goal'])
+    new_db['wsu_productsize_goal_stepped2'] = 2.0 * ( agg_cube + new_db['mfssize'] * new_db['wsu_nspw_goal'])
+
+    # calculate the required system performance
+    calc_sysperf(new_db,
+                 label='aprojonly',
+                 mosaic_aproject=True,
+                 wproject=False,
+                 visrate_list = ['wsu_visrate_goal_stepped2_typical'])
+
+    
+    return new_db
+
+
+

@@ -22,7 +22,9 @@ import ipdb
 mycolors = {'blc': 'seagreen',
             'early': 'darkslateblue',
             'later_2x': 'firebrick',
-            'later_4x':'darkorange' }
+            'later_4x':'darkorange' ,
+            'initial': 'firebrick', 
+            'goal': 'royalblue'}
 
 # TODO: Double-check these numbers
 # setup fiducial values.
@@ -1134,7 +1136,9 @@ def plot_cubesize_comparison(mydb,
                              plot_title='Cube Size',
                              mitigated_wsu=False,
                              figname=None,
-                             band1_band2_estimate=None):
+                             band1_band2_estimate=None,
+                             add_initial = False,
+                             old_labels = True):
     '''
     Purpose: compare the cubesize distribution
     between WSU and BLC
@@ -1142,6 +1146,7 @@ def plot_cubesize_comparison(mydb,
     Date        Programmer      Description of Changes
     ---------------------------------------------------
     1/31/2023   A.A. Kepley     Original Code
+    8/2/2024    A.A. Kepley     added initial and goal
     '''
 
     maxcubesize = 40
@@ -1149,6 +1154,15 @@ def plot_cubesize_comparison(mydb,
     
     mybins = 500
 
+    if old_labels:
+        mylabel_early = 'early WSU'
+        mylabel_later = 'later WSU'
+    else:
+        mylabel_early = 'MWS = early WSU'
+        mylabel_later = 'FWS = later WSU'
+        
+    
+    
     plt.hist(np.log10(mydb['mitigatedcubesize'].value.filled(np.nan)),cumulative=-1,histtype='step',
              bins=mybins,
              log=True,
@@ -1178,6 +1192,30 @@ def plot_cubesize_comparison(mydb,
                  linewidth=2,
                  label="WSU (mitigated)")
 
+    if add_initial:
+        plt.hist(np.log10(mydb['wsu_cubesize_initial_stepped2'].value), cumulative=-1, histtype='step',
+                 bins=mybins,
+                 log=True,
+                 density=True,
+                 color=mycolors['initial'],
+                 linestyle='-',
+                 linewidth=2,
+                 label="IWS")
+
+        if band1_band2_estimate:
+            plt.fill_between(band1_band2_estimate['wsu_cubesize_initial_stepped2']['bins'][1:],
+                             band1_band2_estimate['wsu_cubesize_initial_stepped2']['min'],
+                             band1_band2_estimate['wsu_cubesize_initial_stepped2']['max'],
+                             step='pre',
+                             color=mycolors['initial'],
+                             alpha=0.4)
+            plt.stairs(band1_band2_estimate['wsu_cubesize_initial_stepped2']['median'],
+                       band1_band2_estimate['wsu_cubesize_initial_stepped2']['bins'],
+                       label='w/ Bands 1 & 2',
+                       color=mycolors['initial'],
+                       linewidth=2,
+                       linestyle=':')
+        
 
     plt.hist(np.log10(mydb['wsu_cubesize_stepped2'].value), cumulative=-1, histtype='step',
              bins=mybins,
@@ -1394,7 +1432,10 @@ def plot_spw_hist_all(mydb,
                       nbin=10,
                       title='',
                       pltname=None,
-                      ylog=False):
+                      ylog=False,
+                      add_initial = False,
+                      add_goal= False,
+                      old_labels=True):
     '''
     Purpose: plot the distribution of the number of spectral windows for all
     WSU stages at one time
@@ -1404,6 +1445,13 @@ def plot_spw_hist_all(mydb,
     7/10/2023   A.A. Kepley     Original Code
     '''
 
+    if old_labels:
+        mylabel_early = 'early WSU'
+        mylabel_later = 'later WSU'
+    else:
+        mylabel_early = 'MWS = early WSU'
+        mylabel_later = 'FWS = later WSU'
+        
     if bin_min < 0:
         bin_min = np.min(mydb[data_val]).value
         
@@ -1413,6 +1461,7 @@ def plot_spw_hist_all(mydb,
     # nbin+1 not nbin to take care of fence post 
     mybins = np.linspace(bin_min,bin_max,nbin+1)
 
+    
     print(mybins)
     
     fig, ax1 = plt.subplots()
@@ -1436,8 +1485,28 @@ def plot_spw_hist_all(mydb,
              weights=mydb['weights_all'],
              label='BLC/ACA',log=ylog)
 
+    if add_initial:
+        ax1.hist(mydb['wsu_nspw_initial'],
+                 bins=mybins,
+                 color=mycolors['initial'],
+                 align='left',
+                 alpha=0.2,
+                 weights=mydb['weights_all'],log=ylog)
+        
+
+        ax1.hist(mydb['wsu_nspw_initial'],
+                 bins=mybins,
+                 color=mycolors['initial'],
+                 align='left',
+                 histtype='step',
+                 linewidth=2,
+                 edgecolor=mycolors['initial'],
+                 weights=mydb['weights_all'],
+                 label='IWS',log=ylog)
+        
     
-    ax1. hist(mydb['wsu_nspw_early'],
+    
+    ax1.hist(mydb['wsu_nspw_early'],
               bins=mybins,
               color=mycolors['early'],
               align='left',
@@ -1445,7 +1514,7 @@ def plot_spw_hist_all(mydb,
               weights=mydb['weights_all'],log=ylog)
 
 
-    ax1. hist(mydb['wsu_nspw_early'],
+    ax1.hist(mydb['wsu_nspw_early'],
               bins=mybins,
               color=mycolors['early'],
               align='left',
@@ -1453,7 +1522,7 @@ def plot_spw_hist_all(mydb,
               linewidth=2,
               edgecolor=mycolors['early'],
               weights=mydb['weights_all'],
-              label='early WSU',log=ylog)
+              label=mylabel_early,log=ylog)
 
     #ax1. hist(mydb['wsu_nspw_later_2x'],
     #          bins=mybins,
@@ -1472,14 +1541,35 @@ def plot_spw_hist_all(mydb,
     #          weights=mydb['weights_all'],
     #          label='Later WSU (2x)')
 
-    ax1. hist(mydb['wsu_nspw_later_4x'],
+
+    if add_goal:
+        ax1.hist(mydb['wsu_nspw_goal'],
+                 bins=mybins,
+                 color=mycolors['goal'],
+                 align='left',
+                 alpha=0.2,
+                 weights=mydb['weights_all'],log=ylog)
+        
+        
+        ax1.hist(mydb['wsu_nspw_goal'],
+                 bins=mybins,
+                 color=mycolors['goal'],
+                 align='left',
+                 histtype='step',
+                 linewidth=2,
+                 edgecolor=mycolors['goal'],
+                 weights=mydb['weights_all'],
+                 label='GWS',log=ylog)
+        
+    
+    ax1.hist(mydb['wsu_nspw_later_4x'],
               bins=mybins,
               color=mycolors['later_4x'],
               align='left',
               alpha=0.2,
               weights=mydb['weights_all'],log=ylog)
 
-    ax1. hist(mydb['wsu_nspw_later_4x'],
+    ax1.hist(mydb['wsu_nspw_later_4x'],
               bins=mybins,
               color=mycolors['later_4x'],
               align='left',
@@ -1487,12 +1577,12 @@ def plot_spw_hist_all(mydb,
               linewidth=2,
               edgecolor=mycolors['later_4x'],
               weights=mydb['weights_all'],
-              label='Later WSU',log=ylog)
+              label=mylabel_later,log=ylog)
 
     
     ax1.set_ylim((0,1.1))
 
-    ax1.legend(loc='lower left')
+    ax1.legend(loc='lower right')
     
     ax1.set_xlabel('Number of spectral windows')
     ax1.set_ylabel('Fraction of time')
@@ -1511,7 +1601,10 @@ def plot_productsize_comparison(mydb,
                                 mitigated_wsu=False,
                                 band1_band2_estimate=None,
                                 uneven_spw_estimate=None,
-                                figname=None):
+                                figname=None,
+                                add_initial = False,
+                                add_goal = False,
+                                old_labels=True):
     '''
     Purpose: compare the productsize distribution
     between WSU and BLC
@@ -1521,11 +1614,19 @@ def plot_productsize_comparison(mydb,
     1/31/2023   A.A. Kepley     Original Code
     9/2024 A.A. Kepley          Added band 1 and 2 estimates
     1/19/2024   A.A. Kepley     Added uneven spw estimates
+    8/21/2024   A.A. Kepley     Add initial and goal WSU
     '''
 
     #maxproductsize = 500 #GB
     maxproductsize = 0.500 #TB
     mybins = 500
+    
+    if old_labels:
+        mylabel_early = 'early WSU'
+        mylabel_later = 'later WSU'
+    else:
+        mylabel_early = 'MWS = early WSU'
+        mylabel_later = 'FWS = later WSU'
 
     plt.hist(np.log10(mydb['mitigatedprodsize'].to('TB').value.filled(np.nan)),cumulative=-1,histtype='step',
              bins=mybins,
@@ -1547,6 +1648,34 @@ def plot_productsize_comparison(mydb,
              linewidth=2,
              label="BLC/ACA (unmitigated)")
 
+
+    if add_initial:
+        plt.hist(np.log10(mydb['wsu_productsize_initial_stepped2'].to('TB').value), cumulative=-1, histtype='step',
+                 bins=mybins,
+                 log=True,
+                 density=True,
+                 weights=mydb['weights_all'],
+                 color=mycolors['initial'],
+                 linestyle='-',
+                 linewidth=2,
+                 label='IWS')
+
+        
+        if band1_band2_estimate:
+            ## the log10 was already done in the binning.
+            plt.fill_between(band1_band2_estimate['wsu_productsize_initial_stepped2']['bins'][1:],
+                             band1_band2_estimate['wsu_productsize_initial_stepped2']['min'],
+                             y2=band1_band2_estimate['wsu_productsize_initial_stepped2']['max'],
+                             step='pre',
+                             color=mycolors['initial'],                         
+                             alpha=0.4)
+            plt.stairs(band1_band2_estimate['wsu_productsize_initial_stepped2']['median'],
+                       band1_band2_estimate['wsu_productsize_initial_stepped2']['bins'],
+                       label='w/ Bands 1 & 2',
+                       color=mycolors['initial'],
+                       linewidth=2,                   
+                       linestyle=':')
+    
     if mitigated_wsu:
         plt.hist(np.log10(mydb['wsu_productsize_early_stepped2_mit'].to('TB').value), cumulative=-1, histtype='step',
                  bins=mybins,
@@ -1566,8 +1695,7 @@ def plot_productsize_comparison(mydb,
              color=mycolors['early'],
              linestyle='-',
              linewidth=2,
-             label="Early WSU")
-
+             label=mylabel_early)
 
     if band1_band2_estimate:
         ## the log10 was already done in the binning.
@@ -1607,6 +1735,33 @@ def plot_productsize_comparison(mydb,
     #         linewidth=2,
     #         label="Later WSU (2x)")
 
+    if add_goal:
+        plt.hist(np.log10(mydb['wsu_productsize_goal_stepped2'].to('TB').value), cumulative=-1, histtype='step',
+                 bins=mybins,
+                 log=True,
+                 density=True,
+                 weights=mydb['weights_all'],
+                 color=mycolors['goal'],
+                 linestyle='-',
+                 linewidth=2,
+                 label='GWS')
+
+        
+        if band1_band2_estimate:
+            ## the log10 was already done in the binning.
+            plt.fill_between(band1_band2_estimate['wsu_productsize_goal_stepped2']['bins'][1:],
+                             band1_band2_estimate['wsu_productsize_goal_stepped2']['min'],
+                             y2=band1_band2_estimate['wsu_productsize_goal_stepped2']['max'],
+                             step='pre',
+                             color=mycolors['goal'],                         
+                             alpha=0.4)
+            plt.stairs(band1_band2_estimate['wsu_productsize_goal_stepped2']['median'],
+                       band1_band2_estimate['wsu_productsize_goal_stepped2']['bins'],
+                       label='w/ Bands 1 & 2',
+                       color=mycolors['goal'],
+                       linewidth=2,                   
+                       linestyle=':')
+    
     plt.hist(np.log10(mydb['wsu_productsize_later_4x_stepped2'].to('TB').value), cumulative=-1, histtype='step',
              bins=mybins,
              log=True,
@@ -1614,7 +1769,7 @@ def plot_productsize_comparison(mydb,
              weights=mydb['weights_all'],
              color=mycolors['later_4x'],
              linewidth=2,
-             label="Later WSU")
+             label=mylabel_later)
 
 
     if band1_band2_estimate:
@@ -1684,7 +1839,10 @@ def plot_datavol_comparison(mydb,
                             plot_title="Visibility Data Volume",
                             band1_band2_estimate=None,
                             uneven_spw_estimate=None,                            
-                            figname=None):
+                            figname=None,
+                            add_initial = False,
+                            add_goal = False,
+                            old_labels = True):
     '''
     Purpose: compare the nvis distribution
     between WSU and BLC
@@ -1696,6 +1854,13 @@ def plot_datavol_comparison(mydb,
 
     mybins = 500    
 
+    if old_labels:
+        mylabel_early = 'early WSU'
+        mylabel_later = 'later WSU'
+    else:
+        mylabel_early = 'MWS'
+        mylabel_later = 'FWS'
+    
     plt.hist(np.log10(mydb['blc_datavol_typical_'+datatype].to('TB').value),cumulative=-1,histtype='step',
              bins=mybins,
              log=True,
@@ -1704,7 +1869,33 @@ def plot_datavol_comparison(mydb,
              color=mycolors['blc'],
              linewidth=2,
              label="BLC/ACA")
-    
+
+    if add_initial:
+        plt.hist(np.log10(mydb['wsu_datavol_initial_stepped2_initial_'+datatype].to('TB').value), cumulative=-1,histtype='step',
+                 bins=mybins,
+                 log=True,
+                 density=True,
+                 weights=mydb['weights_all'],
+                 color=mycolors['initial'],
+                 linewidth=2,
+                 label='IWS')
+
+        if band1_band2_estimate:
+            ## the -3 converts between GB and TB in log10 space
+            plt.fill_between(band1_band2_estimate['wsu_datavol_initial_stepped2_initial_'+datatype]['bins'][1:],
+                             band1_band2_estimate['wsu_datavol_initial_stepped2_initial_'+datatype]['min'],
+                             band1_band2_estimate['wsu_datavol_initial_stepped2_initial_'+datatype]['max'],
+                             step='pre',
+                             color=mycolors['initial'],
+                             alpha=0.4)
+            plt.stairs(band1_band2_estimate['wsu_datavol_initial_stepped2_initial_'+datatype]['median'],
+                       band1_band2_estimate['wsu_datavol_initial_stepped2_initial_'+datatype]['bins'] ,
+                       label='w/ Bands 1 & 2',
+                       color=mycolors['initial'],
+                       linewidth=2,
+                       linestyle=':')
+
+        
     plt.hist(np.log10(mydb['wsu_datavol_early_stepped2_typical_'+datatype].to('TB').value), cumulative=-1,histtype='step',
              bins=mybins,
              log=True,
@@ -1712,7 +1903,7 @@ def plot_datavol_comparison(mydb,
              weights=mydb['weights_all'],
              color=mycolors['early'],
              linewidth=2,
-             label="early WSU")
+             label=mylabel_early)
 
     if band1_band2_estimate:
         ## the -3 converts between GB and TB in log10 space
@@ -1752,6 +1943,33 @@ def plot_datavol_comparison(mydb,
     #         linewidth=2,
     #         label="later WSU (2x)")
 
+
+    if add_goal:
+        plt.hist(np.log10(mydb['wsu_datavol_goal_stepped2_typical_'+datatype].to('TB').value), cumulative=-1,histtype='step',
+                 bins=mybins,
+                 log=True,
+                 density=True,
+                 weights=mydb['weights_all'],
+                 color=mycolors['goal'],
+                 linewidth=2,
+                 label='GWS')
+
+
+        if band1_band2_estimate:
+            ## the -3 converts between GB and TB in log10 space
+            plt.fill_between(band1_band2_estimate['wsu_datavol_goal_stepped2_typical_'+datatype]['bins'][1:],
+                             band1_band2_estimate['wsu_datavol_goal_stepped2_typical_'+datatype]['min'],
+                             band1_band2_estimate['wsu_datavol_goal_stepped2_typical_'+datatype]['max'],
+                             step='pre',
+                             color=mycolors['goal'],
+                             alpha=0.4)
+            plt.stairs(band1_band2_estimate['wsu_datavol_goal_stepped2_typical_'+datatype]['median'],
+                       band1_band2_estimate['wsu_datavol_goal_stepped2_typical_'+datatype]['bins'] ,
+                   label='w/ Bands 1 & 2',
+                       color=mycolors['goal'],
+                       linewidth=2,
+                       linestyle=':')
+            
     plt.hist(np.log10(mydb['wsu_datavol_later_4x_stepped2_typical_'+datatype].to('TB').value), cumulative=-1,histtype='step',
              bins=mybins,
              log=True,
@@ -1759,7 +1977,7 @@ def plot_datavol_comparison(mydb,
              weights=mydb['weights_all'],
              color=mycolors['later_4x'],
              linewidth=2,
-             label="later WSU")
+             label=mylabel_later)
         
     if band1_band2_estimate:
         plt.fill_between(band1_band2_estimate['wsu_datavol_later_4x_stepped2_typical_'+datatype]['bins'][1:],
@@ -1901,17 +2119,29 @@ def plot_datarate_comparison(mydb,
                              add_band2_specscan=False,
                              band1_band2_estimate=None,
                              uneven_spw_estimate=None,                             
-                             add_tech_limits=False):
+                             add_tech_limits=False,
+                             add_initial = False,
+                             add_goal = False,
+                             old_labels = True):
     '''
     Purpose: compare the data rate distribution between WSU and BLC.
 
     Date        Programmer      Description of Changes
     ---------------------------------------------------
     5/15/2023   A.A. Kepley     Original Code
+    8/21/2024   A.A. Kepley     add initial and goal WSU
     '''
 
     mybins = 500
 
+    if old_labels:
+        mylabel_early = 'early WSU'
+        mylabel_later = 'later WSU'
+    else:
+        mylabel_early = 'MWS = early WSU'
+        mylabel_later = 'FWS = later WSU'
+        
+    
     plt.hist(np.log10(mydb['blc_datarate_typical'].value),cumulative=-1,histtype='step',
              bins=mybins,
              log=True,
@@ -1920,7 +2150,31 @@ def plot_datarate_comparison(mydb,
              weights=mydb['weights_all'],
              linewidth=2,
              label="BLC/ACA")
-    
+
+    if add_initial:
+        plt.hist(np.log10(mydb['wsu_datarate_initial_stepped2_initial'].value), cumulative=-1,histtype='step',
+                 bins=mybins,
+                 log=True,
+                 density=True,
+                 color=mycolors['initial'],
+                 weights=mydb['weights_all'],
+                 linewidth=2,
+                 label='IWS')
+
+        if band1_band2_estimate:
+            plt.fill_between(band1_band2_estimate['wsu_datarate_initial_stepped2_initial']['bins'][1:],
+                             band1_band2_estimate['wsu_datarate_initial_stepped2_initial']['min'],
+                             y2=band1_band2_estimate['wsu_datarate_initial_stepped2_initial']['max'],
+                             step='pre',
+                             color=mycolors['initial'],                         
+                             alpha=0.4)
+            plt.stairs(band1_band2_estimate['wsu_datarate_initial_stepped2_initial']['median'],
+                       band1_band2_estimate['wsu_datarate_initial_stepped2_initial']['bins'],
+                       label='w/ Bands 1 & 2',
+                       color=mycolors['initial'],
+                       linewidth=2,                   
+                       linestyle=':') 
+        
     plt.hist(np.log10(mydb['wsu_datarate_early_stepped2_typical'].value), cumulative=-1,histtype='step',
              bins=mybins,
              log=True,
@@ -1928,7 +2182,7 @@ def plot_datarate_comparison(mydb,
              color=mycolors['early'],
              weights=mydb['weights_all'],
              linewidth=2,
-             label="early WSU")
+             label=mylabel_early)
 
     if band1_band2_estimate:
         plt.fill_between(band1_band2_estimate['wsu_datarate_early_stepped2_typical']['bins'][1:],
@@ -1982,6 +2236,34 @@ def plot_datarate_comparison(mydb,
     #               linewidth=2,                   
     #               linestyle=':') 
     
+
+    if add_goal:
+        plt.hist(np.log10(mydb['wsu_datarate_goal_stepped2_typical'].value), cumulative=-1,histtype='step',
+                 bins=mybins,
+                 log=True,
+                 density=True,
+                 color=mycolors['goal'],
+                 weights=mydb['weights_all'],
+                 linewidth=2,
+                 label='GWS')        
+
+        
+        if band1_band2_estimate:
+            plt.fill_between(band1_band2_estimate['wsu_datarate_goal_stepped2_typical']['bins'][1:],
+                             band1_band2_estimate['wsu_datarate_goal_stepped2_typical']['min'],
+                             y2=band1_band2_estimate['wsu_datarate_goal_stepped2_typical']['max'],
+                             step='pre',
+                             color=mycolors['goal'],                         
+                             alpha=0.4)
+            plt.stairs(band1_band2_estimate['wsu_datarate_goal_stepped2_typical']['median'],
+                       band1_band2_estimate['wsu_datarate_goal_stepped2_typical']['bins'],
+                       label='w/ Bands 1 & 2',
+                       color=mycolors['goal'],
+                       linewidth=2,                   
+                       linestyle=':') 
+        
+
+
     plt.hist(np.log10(mydb['wsu_datarate_later_4x_stepped2_typical'].value), cumulative=-1,histtype='step',
              bins=mybins,
              log=True,
@@ -1989,7 +2271,7 @@ def plot_datarate_comparison(mydb,
              color=mycolors['later_4x'],
              weights=mydb['weights_all'],
              linewidth=2,
-             label="later WSU")
+             label=mylabel_later)
 
     
     if band1_band2_estimate:
@@ -2029,7 +2311,7 @@ def plot_datarate_comparison(mydb,
     plt.text(-2.8,0.05,'5% larger')
 
     plt.axhline(0.01,color='gray',linestyle=':')
-    plt.text(-2.8,0.01,'1% larger')
+    plt.text(-2.5,0.01,'1% larger')
 
     plt.axvline(np.log10(0.070), color='gray',linestyle=':',linewidth=2)
     plt.text(np.log10(0.070)+0.05,0.7,'Current\nlimit' ,color='gray')
@@ -2295,6 +2577,8 @@ def plot_soc_result_hist(mydb,
     if pltname:
         plt.savefig(pltname)
 
+
+
     
 
 def plot_soc_result_cumulative(mydb,
@@ -2304,8 +2588,11 @@ def plot_soc_result_cumulative(mydb,
                                add_band2_specscan = None,
                                band1_band2_estimate=None,
                                uneven_spw_estimate=None,                            
-                               pltname=None):
-
+                               pltname=None,
+                               add_initial = False,
+                               add_goal = False,
+                               old_labels = True):
+    
     '''
     Purpose: create cumulative histograms showing size of compute
 
@@ -2319,11 +2606,19 @@ def plot_soc_result_cumulative(mydb,
     Date        Programmer      Description of Changes
     --------------------------------------------------
     4/20/2023   A.A. Kepley     Original Code
+    8/21/2024   A.A. Kepley     add initial and goal WSU
     
     '''
 
     mybins = 500
 
+    if old_labels:
+        mylabel_early = 'early WSU'
+        mylabel_later = 'later WSU'
+    else:
+        mylabel_early = 'MWS = early WSU'
+        mylabel_later = 'FWS = later WSU'
+        
     plt.hist(np.log10(mydb['blc_sysperf_typical'+'_'+label]), cumulative=-1, histtype='step',
              bins=mybins,
              log=True,
@@ -2348,7 +2643,31 @@ def plot_soc_result_cumulative(mydb,
     #         color=mycolors['early'],
     #         linestyle=':',linewidth=2,
     #         label='early WSU \n(<500 MB/s)',)
-     
+
+    if add_initial:
+        plt.hist(np.log10(mydb['wsu_sysperf_initial_stepped2_initial'+'_'+label]), cumulative=-1, histtype='step',
+                 bins=mybins,
+                 log=True,
+                 density=True,
+                 weights=mydb['weights_all'],
+                 color=mycolors['initial'],
+                 linewidth=2,
+                 label='IWS')
+
+
+        if band1_band2_estimate:
+            plt.fill_between(band1_band2_estimate['wsu_sysperf_initial_stepped2_initial'+'_'+label]['bins'][1:],
+                             band1_band2_estimate['wsu_sysperf_initial_stepped2_initial'+'_'+label]['min'],
+                             y2=band1_band2_estimate['wsu_sysperf_initial_stepped2_initial'+'_'+label]['max'],
+                             step='pre',
+                             color=mycolors['initial'],
+                             alpha=0.4)
+            plt.stairs(band1_band2_estimate['wsu_sysperf_initial_stepped2_initial'+'_'+label]['median'],
+                       band1_band2_estimate['wsu_sysperf_initial_stepped2_initial'+'_'+label]['bins'],
+                       label='w/ Bands 1 & 2',
+                       color=mycolors['initial'],
+                       linewidth=2,
+                       linestyle=':')
         
     plt.hist(np.log10(mydb['wsu_sysperf_early_stepped2_typical'+'_'+label]), cumulative=-1, histtype='step',
              bins=mybins,
@@ -2357,7 +2676,7 @@ def plot_soc_result_cumulative(mydb,
              weights=mydb['weights_all'],
              color=mycolors['early'],
              linewidth=2,
-             label='early WSU')
+             label=mylabel_early)
 
     if band1_band2_estimate:
         plt.fill_between(band1_band2_estimate['wsu_sysperf_early_stepped2_typical'+'_'+label]['bins'][1:],
@@ -2408,7 +2727,31 @@ def plot_soc_result_cumulative(mydb,
     #    plt.axvline(np.log10(wavg), color=mycolors['later_2x'], linestyle=':')
     #    #plt.text(np.log10(wavg)+0.05,0.0026,'{:5.2e} \nPFLOP/s'.format(wavg),
     #    #         color='#2ca02c')
-                
+
+
+    if add_goal:
+        plt.hist(np.log10(mydb['wsu_sysperf_goal_stepped2_typical'+'_'+label]), cumulative=-1, histtype='step',
+                 bins=mybins,
+                 log=True,
+                 density=True,
+                 weights=mydb['weights_all'],
+                 color = mycolors['goal'],
+                 linewidth=2,
+                 label='GWS')
+
+        if band1_band2_estimate:
+            plt.fill_between(band1_band2_estimate['wsu_sysperf_goal_stepped2_typical'+'_'+label]['bins'][1:],
+                             band1_band2_estimate['wsu_sysperf_goal_stepped2_typical'+'_'+label]['min'],
+                             y2=band1_band2_estimate['wsu_sysperf_goal_stepped2_typical'+'_'+label]['max'],
+                             step='pre',
+                             color=mycolors['goal'],
+                             alpha=0.4)
+            plt.stairs(band1_band2_estimate['wsu_sysperf_goal_stepped2_typical'+'_'+label]['median'],
+                       band1_band2_estimate['wsu_sysperf_goal_stepped2_typical'+'_'+label]['bins'],
+                       label='w/ Bands 1 & 2',
+                       color=mycolors['goal'],
+                       linewidth=2,
+                       linestyle=':')
 
     plt.hist(np.log10(mydb['wsu_sysperf_later_4x_stepped2_typical'+'_'+label]), cumulative=-1, histtype='step',
              bins=mybins,
@@ -2417,7 +2760,7 @@ def plot_soc_result_cumulative(mydb,
              weights=mydb['weights_all'],
              color = mycolors['later_4x'],
              linewidth=2,
-             label='later WSU')
+             label=mylabel_later)
 
     if band1_band2_estimate:
         plt.fill_between(band1_band2_estimate['wsu_sysperf_later_4x_stepped2_typical'+'_'+label]['bins'][1:],
@@ -2988,8 +3331,12 @@ def visibility_size_comparison_hist_plot(mydb,
 
     blc_val = 'blc_datavol_typical_total'
     xaxis_label = 'BLC/ACA Visibility Data Volume'
-    
-    wsu_val = 'wsu_datavol_'+stage+'_stepped2_typical_total'
+
+    if stage == 'initial':
+        wsu_val = 'wsu_datavol_'+stage+'_stepped2_initial_total'
+    else:
+        wsu_val = 'wsu_datavol_'+stage+'_stepped2_typical_total'
+        
     yaxis_label = 'Log 10 WSU Visibility Data Volume' + ' (' + mydb[blc_val].unit.to_string() + ')'
 
     xaxis_label = 'Log10 ' + xaxis_label + ' (' + mydb[blc_val].unit.to_string() + ')'
