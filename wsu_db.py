@@ -1910,7 +1910,9 @@ def make_wsu_stats_table_newstats_datarate(mystats,fileout='test.tex', add_initi
     if add_initial_goal:
         stage_list = ['initial','early','goal','later_4x']
         tablehead = '''\definecolor{myband}{RGB}{255,235,205}
-\definecolor{my2x}{RGB}{182, 208, 226}
+\definecolor{myinitial}{RGB}{181,110,110}
+\definecolor{mygoal}{RGB}{152,168,214}
+\definecolor{my2x}{RGB}{115, 112, 138}
 \definecolor{my4x}{RGB}{251, 206, 177}
         
 \\begin{sidewaystable}
@@ -1920,7 +1922,7 @@ def make_wsu_stats_table_newstats_datarate(mystats,fileout='test.tex', add_initi
 width=\\textwidth,
 cells = {font=\scriptsize}}
 \\hline[2pt]
-\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c} IWS & & & \SetCell[c=3]{c,bg=my2x} MWS  & & & \SetCell[c=3]{c,} GWS & & & \SetCell[c=3]{c,bg=my4x} FWS & &   \\\\ \hline[1pt]
+\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c,bg=myinitial} IWS & & & \SetCell[c=3]{c,bg=my2x} MWS  & & & \SetCell[c=3]{c,bg=mygoal} GWS & & & \SetCell[c=3]{c,bg=my4x} FWS & &   \\\\ \hline[1pt]
 & & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both \\\\ \hline[1pt]
 '''
     else:
@@ -2038,9 +2040,11 @@ def make_wsu_stats_table_newstats_datavol(mystats,fileout='test2.tex',add_initia
     if add_initial_goal:
         stage_list = ['initial','early','goal','later_4x']
         tablehead = '''\definecolor{myband}{RGB}{255,235,205}
-\definecolor{my2x}{RGB}{182, 208, 226}
+\definecolor{myinitial}{RGB}{181,110,110}
+\definecolor{mygoal}{RGB}{152,168,214}
+\definecolor{my2x}{RGB}{115, 112, 138}
 \definecolor{my4x}{RGB}{251, 206, 177}
-
+  
 \\begin{sidewaystable}
 \centering
 \caption{Overview of Data Volume Properties for WSU \label{tab:overview_datavol}}
@@ -2048,7 +2052,7 @@ def make_wsu_stats_table_newstats_datavol(mystats,fileout='test2.tex',add_initia
 width=\\textwidth,
 cells = {font=\scriptsize}}
 \\hline[2pt]
-\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c} IWS & & & \SetCell[c=3]{c,bg=my2x} MWS  & & & \SetCell[c=3]{c,} GWS & & & \SetCell[c=3]{c,bg=my4x} FWS & &   \\\\ \hline[1pt]
+\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c,bg=myinitial} IWS & & & \SetCell[c=3]{c,bg=my2x} MWS  & & & \SetCell[c=3]{c,bg=mygoal} GWS & & & \SetCell[c=3]{c,bg=my4x} FWS & &   \\\\ \hline[1pt]
 & & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both \\\\ \hline[1pt]
 '''        
     else:
@@ -2175,7 +2179,9 @@ def make_wsu_stats_table_newstats_sysperf(mystats, add_initial_goal=False,
     if add_initial_goal:
         stage_list = ['initial','early','goal','later_4x']
         tablehead = '''\definecolor{myband}{RGB}{255,235,205}
-\definecolor{my2x}{RGB}{182, 208, 226}
+\definecolor{myinitial}{RGB}{181,110,110}
+\definecolor{mygoal}{RGB}{152,168,214}
+\definecolor{my2x}{RGB}{115, 112, 138}
 \definecolor{my4x}{RGB}{251, 206, 177}
 
 \\begin{sidewaystable}
@@ -2185,7 +2191,7 @@ def make_wsu_stats_table_newstats_sysperf(mystats, add_initial_goal=False,
 width=\\textwidth,
 cells = {font=\scriptsize}}
 \\hline[2pt]
-\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c} IWS & & & \SetCell[c=3]{c,bg=my2x} MWS  & & & \SetCell[c=3]{c,} GWS & & & \SetCell[c=3]{c,bg=my4x} FWS & &   \\\\ \hline[1pt]
+\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c,bg=myinitial} IWS & & & \SetCell[c=3]{c,bg=my2x} MWS  & & & \SetCell[c=3]{c,bg=mygoal} GWS & & & \SetCell[c=3]{c,bg=my4x} FWS & &   \\\\ \hline[1pt]
 & & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both \\\\ \hline[1pt]
 '''
 
@@ -4152,7 +4158,8 @@ def create_initial_wsu_db(wsu_all):
     new_db['wsu_tint_initial'] =  new_db['wsu_tint_initial'] * u.s
     
     idx = new_db['array'] == '12m'    
-    new_db['nant_initial'][idx] = 36
+    #new_db['nant_initial'][idx] = 36
+    new_db['nant_initial'][idx] = 43 #changed to 43 per instructions from John C.
     new_db['wsu_tint_initial'][idx] = 6.144 * u.s
 
 
