@@ -1507,6 +1507,54 @@ def apply_mitigations(mydb,
         mydb['wsu_productsize_'+stage+'_stepped2_mit'] = 2.0 * (mydb['wsu_cubesize_stepped2_mit'] + mydb['wsu_mfssize_mit']) * mydb['wsu_nspw_'+stage] * mydb['ntarget']
 
 
+def apply_mitigations_initial(mydb,
+                              maxcubesize=40 * u.GB,
+                              maxcubelimit=100 * u.GB,
+                              maxproductsize=500 * u.GB):
+    '''
+    Purpose: apply the maximum mitigation to the data base
+
+    Inputs: per mous data base (because mitigations are per mous)
+
+    only doing cube mitigations
+
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    1/26/2023   A.A. Kepley     Original Code
+    10/26/2024  A.A. Kepley     Modified from original function to account for mitigation in iws
+                                and only do cube mitigation
+    '''
+
+    from large_cubes import calc_mfs_size, calc_cube_size
+
+    mydb['imsize_mit'] = mydb['imsize']
+
+    ## if cubesize is greater than limit reduce to smallest possible cubesize
+
+    mos_idx = ( (mydb['mosaic'] =='T') &
+                ( (mydb['wsu_cubesize_initial_stepped2'] > maxcubesize) |
+                  (mydb['wsu_productsize_initial_stepped2'] > maxproductsize)))
+    
+    sf_idx =  ( (mydb['mosaic'] =='F') &
+                ( (mydb['wsu_cubesize_initial_stepped2'] > maxcubesize) | 
+                  (mydb['wsu_productsize_initial_stepped2'] > maxproductsize)))
+    
+
+    # For mosaics, only pixels per beam mitigation is possible
+    mydb['imsize_mit'][mos_idx] = mydb['imsize'][mos_idx] * (3.0/5.0)
+
+    # For SF, both pixels per beam and FOV mitigation is possible
+    # 0.47 is from reducing FOV from 0.2 to 0.7 (linear, not area)
+    mydb['imsize_mit'][sf_idx] = mydb['imsize'][sf_idx] * 0.47 * (3.0/5.0)   
+
+    mydb['wsu_cubesize_initial_stepped2_mit'] = calc_cube_size(mydb['imsize_mit'], mydb['wsu_nchan_spw_stepped2_initial'])
+
+    mydb['wsu_mfssize_initial_mit'] = calc_mfs_size(mydb['imsize_mit'])                     
+    
+    for stage in ['initial']:                                                       
+        mydb['wsu_productsize_'+stage+'_stepped2_mit'] = 2.0 * (mydb['wsu_cubesize_initial_stepped2_mit'] + mydb['wsu_mfssize_initial_mit']) * mydb['wsu_nspw_'+stage] * mydb['ntarget']
+
+        
 def get_pipeinfo(mypkl):
     '''
     Purpose: fix up pandas generated database to play nicely with
@@ -4298,7 +4346,8 @@ def add_initial_wsu_properties(input_db):
     # calculate the product size
     # 2.0 * (aggregate cube size + number of mfs images * size of mfs image)
     agg_cube = calc_cube_size(new_db['imsize'],new_db['wsu_nchan_agg_stepped2_initial'])
-    new_db['wsu_productsize_initial_stepped2'] = 2.0 * ( agg_cube + new_db['mfssize'] * new_db['wsu_nspw_initial'])
+    #new_db['wsu_productsize_initial_stepped2'] = 2.0 * ( agg_cube + new_db['mfssize'] * new_db['wsu_nspw_initial']) ## TODO: needs to include ntarget??
+    new_db['wsu_productsize_initial_stepped2'] = 2.0 * new_db['ntarget'] * ( agg_cube + new_db['mfssize'] * new_db['wsu_nspw_initial']) ## TODO: needs to include ntarget??
 
     # calculate the required system performance
     calc_sysperf(new_db,
@@ -4316,7 +4365,9 @@ def add_initial_wsu_properties(input_db):
     # calculate the product size
     # 2.0 * (aggregate cube size + number of mfs images * size of mfs image)
     agg_cube = calc_cube_size(new_db['imsize'],new_db['wsu_nchan_agg_stepped2_goal'])
-    new_db['wsu_productsize_goal_stepped2'] = 2.0 * ( agg_cube + new_db['mfssize'] * new_db['wsu_nspw_goal'])
+
+    #new_db['wsu_productsize_goal_stepped2'] = 2.0 * ( agg_cube + new_db['mfssize'] * new_db['wsu_nspw_goal']) ## TODO: needs to include ntarget?
+    new_db['wsu_productsize_goal_stepped2'] = 2.0 * new_db['ntarget'] * ( agg_cube + new_db['mfssize'] * new_db['wsu_nspw_goal']) ## TODO: needs to include ntarget?
 
     # calculate the required system performance
     calc_sysperf(new_db,

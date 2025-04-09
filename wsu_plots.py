@@ -3696,8 +3696,8 @@ def plot_tint_l80_scatter(mydb,
 
     TODO: check if blc_nchan_max is what we want to be plotting here. I think I might need to go back to the original data base and then it means adding the spws.
     
-    Date        Programmer      Original Code
-    ------------------------------------------
+    Date        Programmer      Descriptionof Changes
+    -------------------------------------------------
     1/24/2024   A.A. Kepley     Original code
 
     '''
@@ -3723,3 +3723,50 @@ def plot_tint_l80_scatter(mydb,
 
     if pltname:
         plt.savefig(pltname)
+
+
+def plot_category_band_hist2d(mydb, quant1, quant2, stat='max', title='test',
+                              pltname=None):
+    '''
+    Purpose: plot 2d histogram comparing different wsu samples as a funciton of band and proposal category
+
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    2/27/2025   A.A. Kepley     Original Code
+    '''
+
+    if ((quant1 not in mydb.keys()) or (quant2 not in mydb.keys())):
+        print("Quantity not in data base")
+        return
+        
+    category_list = np.unique(mydb['scientific_category_proposal'])
+    band_list = np.unique(mydb['band'])
+    
+    product_ratio = np.zeros([len(category_list),len(band_list)])
+
+    for i in np.arange(len(category_list)):
+        for j in np.arange(len(band_list)):
+            idx = (mydb['scientific_category_proposal'] == category_list[i]) & (mydb['band'] == band_list[j])
+        
+            if np.sum(idx) > 0:
+                if stat == 'max':
+                    product_ratio[i,j] = np.max(mydb[idx][quant2]/mydb[idx][quant1])
+                elif stat == 'average':
+                    product_ratio[i,j] = np.average(mydb[idx][quant2]/mydb[idx][quant1])
+                else:
+                    print("stat unrecognized")
+                    return
+                
+        
+    plt.imshow(product_ratio)
+    cbar = plt.colorbar()
+    cbar.set_label('Ratio')
+
+    plt.yticks(ticks=np.arange(0,len(category_list)),labels=category_list)
+    plt.xlabel('Band')
+    plt.xticks(ticks=np.arange(0,len(band_list)),labels=band_list)
+    plt.title(title)
+
+    if pltname:
+        plt.savefig(pltname)
+
