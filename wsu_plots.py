@@ -1831,7 +1831,108 @@ def plot_productsize_comparison(mydb,
 
     if figname:
         plt.savefig(figname)
+
+
+
+def plot_productsize_comparison_sdd(mydb,
+                                plot_title='Product Size',
+                                band1_band2_estimate=None,
+                                figname=None):
+    '''
+    Purpose: compare the productsize distribution
+    between WSU and BLC
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    1/31/2023   A.A. Kepley     Original Code
+    9/2024 A.A. Kepley          Added band 1 and 2 estimates
+    1/19/2024   A.A. Kepley     Added uneven spw estimates
+    8/21/2024   A.A. Kepley     Add initial and goal WSU
+    4/9/2025    A.A. Kepley     Modified version of original code for SDD
+    '''
+
+    #maxproductsize = 500 #GB
+    maxproductsize = 0.500 #TB
+    mybins = 500
     
+
+    plt.hist(np.log10(mydb['mitigatedprodsize'].to('TB').value.filled(np.nan)),cumulative=-1,histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             weights=mydb['weights_all'],
+             color=mycolors['blc'],
+             linestyle=':',
+             linewidth=2,
+             label="BLC/ACA (mitigated)")
+
+    plt.hist(np.log10(mydb['initialprodsize'].to('TB').value.filled(np.nan)), cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             weights=mydb['weights_all'],
+             color=mycolors['blc'],
+             linestyle='-',
+             linewidth=2,
+             label="BLC/ACA (unmitigated)")
+
+    plt.hist(np.log10(mydb['wsu_productsize_goal_stepped2'].to('TB').value), cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             weights=mydb['weights_all'],
+             color=mycolors['goal'],
+             linestyle='-',
+             linewidth=2,
+             label='Milestone 5')
+
+        
+    if band1_band2_estimate:
+        ## the log10 was already done in the binning.
+        plt.fill_between(band1_band2_estimate['wsu_productsize_goal_stepped2']['bins'][1:],
+                         band1_band2_estimate['wsu_productsize_goal_stepped2']['min'],
+                         y2=band1_band2_estimate['wsu_productsize_goal_stepped2']['max'],
+                         step='pre',
+                         color=mycolors['goal'],                         
+                         alpha=0.4)
+        plt.stairs(band1_band2_estimate['wsu_productsize_goal_stepped2']['median'],
+                   band1_band2_estimate['wsu_productsize_goal_stepped2']['bins'],
+                   label='w/ Bands 1 & 2',
+                   color=mycolors['goal'],
+                   linewidth=2,                   
+                   linestyle=':')
+    
+    plt.axvline(np.log10(maxproductsize), color='black', linestyle=':')
+    plt.text(np.log10(maxproductsize)+0.1,0.65,'Current product size limit\n(500GB)',horizontalalignment='left')
+
+    plt.axhline(0.1,color='gray',linestyle=':')
+    plt.text(-3.5,0.1,'10% larger')
+
+    plt.axhline(0.05,color='gray',linestyle=':')
+    plt.text(-3.5,0.05,'5% larger')
+
+    plt.axhline(0.01,color='gray',linestyle=':')
+    plt.text(-3.5,0.01,'1% larger')
+
+    plt.grid(which='both',axis='both',linestyle=':')
+    
+    #plt.xlabel('Log10(Product size in TB)')
+    plt.xlabel('Product size in TB')
+    plt.ylabel('Fraction of MOUSes with Larger Products')
+
+    locs, labels = plt.xticks()
+
+    newlabels = ['10$^{{ {:2.0f} }}$'.format(val) for val in locs]
+    plt.xticks(locs[1:],newlabels[1:])
+
+    
+    plt.title(plot_title)
+    plt.legend(loc='lower left')
+
+    if figname:
+        plt.savefig(figname)
+
+        
 
 def plot_datavol_comparison(mydb,
                             log=True,
@@ -2034,6 +2135,88 @@ def plot_datavol_comparison(mydb,
     if figname:
         plt.savefig(figname)
 
+
+
+def plot_datavol_comparison_sdd(mydb,
+                                log=True,
+                                datatype='total',
+                                plot_title="Visibility Data Volume",
+                                band1_band2_estimate=None,
+                                figname=None):
+    '''
+    Purpose: compare the nvis distribution
+    between WSU and BLC
+    
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    1/31/2023   A.A. Kepley     Original Code
+    4/9/2025    A.A. Kepley     Updated version of original code for SDD
+    '''
+
+    mybins = 500    
+
+    plt.hist(np.log10(mydb['blc_datavol_typical_'+datatype].to('TB').value),cumulative=-1,histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             weights=mydb['weights_all'],
+             color=mycolors['blc'],
+             linewidth=2,
+             label="BLC/ACA")
+
+
+    plt.hist(np.log10(mydb['wsu_datavol_goal_stepped2_typical_'+datatype].to('TB').value), cumulative=-1,histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             weights=mydb['weights_all'],
+             color=mycolors['goal'],
+             linewidth=2,
+             label='Milestone 5')
+
+
+    if band1_band2_estimate:
+        ## the -3 converts between GB and TB in log10 space
+        plt.fill_between(band1_band2_estimate['wsu_datavol_goal_stepped2_typical_'+datatype]['bins'][1:],
+                         band1_band2_estimate['wsu_datavol_goal_stepped2_typical_'+datatype]['min'],
+                         band1_band2_estimate['wsu_datavol_goal_stepped2_typical_'+datatype]['max'],
+                         step='pre',
+                         color=mycolors['goal'],
+                         alpha=0.4)
+        plt.stairs(band1_band2_estimate['wsu_datavol_goal_stepped2_typical_'+datatype]['median'],
+                   band1_band2_estimate['wsu_datavol_goal_stepped2_typical_'+datatype]['bins'] ,
+                   label='w/ Bands 1 & 2',
+                   color=mycolors['goal'],
+                   linewidth=2,
+                   linestyle=':')
+                    
+    plt.axhline(0.1,color='gray',linestyle=':')
+    plt.text(-3,0.1,'10% larger')
+
+    plt.axhline(0.05,color='gray',linestyle=':')
+    plt.text(-3,0.05,'5% larger')
+
+    plt.axhline(0.01,color='gray',linestyle=':')
+    plt.text(-3,0.01,'1% larger')
+
+    plt.grid(which='both',axis='both',linestyle=':')
+    
+    #plt.xlabel('log(Visibility Data Volume (TB))')
+    plt.xlabel('Visibility Data Volume (TB)')
+    plt.ylabel('Fraction of Larger Data')
+
+    locs, labels = plt.xticks()
+
+    newlabels = ['10$^{{ {:2.0f} }}$'.format(val) for val in locs]
+    plt.xticks(locs[1:],newlabels[1:])
+
+    
+    plt.title(plot_title)
+    plt.legend(loc='lower left')
+
+    if figname:
+        plt.savefig(figname)
+        
 def plot_datavol_result_hist(mydb,
                              log=True,
                              bin_min=-1,
@@ -2112,6 +2295,7 @@ def plot_datavol_result_hist(mydb,
     
     if pltname:
         plt.savefig(pltname)
+
 
 def plot_datarate_comparison(mydb,
                              plot_title="Data Rate",
@@ -2362,7 +2546,93 @@ def plot_datarate_comparison(mydb,
     if figname:
         plt.savefig(figname, dpi=600)
 
+
+
+def plot_datarate_comparison_sdd(mydb,
+                                 plot_title="Data Rate",
+                                 figname=None,
+                                 band1_band2_estimate=None):
+    '''
+    Purpose: compare the data rate distribution between WSU and BLC.
+
+    Date        Programmer      Description of Changes
+    ---------------------------------------------------
+    5/15/2023   A.A. Kepley     Original Code
+    8/21/2024   A.A. Kepley     add initial and goal WSU
+    4/9/2025    A.A. Kepley     modified version of original code to just make what's needed for SDD
+    '''
+
+    mybins = 500
+
     
+    plt.hist(np.log10(mydb['blc_datarate_typical'].value),cumulative=-1,histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             color=mycolors['blc'],
+             weights=mydb['weights_all'],
+             linewidth=2,
+             label="BLC/ACA")
+
+
+    plt.hist(np.log10(mydb['wsu_datarate_goal_stepped2_typical'].value), cumulative=-1,histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             color=mycolors['goal'],
+             weights=mydb['weights_all'],
+             linewidth=2,
+             label='Milestone 5')        
+
+        
+    if band1_band2_estimate:
+        plt.fill_between(band1_band2_estimate['wsu_datarate_goal_stepped2_typical']['bins'][1:],
+                         band1_band2_estimate['wsu_datarate_goal_stepped2_typical']['min'],
+                         y2=band1_band2_estimate['wsu_datarate_goal_stepped2_typical']['max'],
+                         step='pre',
+                         color=mycolors['goal'],                         
+                         alpha=0.4)
+        plt.stairs(band1_band2_estimate['wsu_datarate_goal_stepped2_typical']['median'],
+                   band1_band2_estimate['wsu_datarate_goal_stepped2_typical']['bins'],
+                   label='w/ Bands 1 & 2',
+                   color=mycolors['goal'],
+                   linewidth=2,                   
+                   linestyle=':') 
+        
+        
+    plt.axhline(0.1,color='gray',linestyle=':')
+    plt.text(-2.8,0.1,'10% larger')
+    
+    plt.axhline(0.05,color='gray',linestyle=':')
+    plt.text(-2.8,0.05,'5% larger')
+
+    plt.axhline(0.01,color='gray',linestyle=':')
+    plt.text(-2.5,0.01,'1% larger')
+
+    plt.axvline(np.log10(0.070), color='gray',linestyle=':',linewidth=2)
+    plt.text(np.log10(0.070)+0.05,0.7,'Current\nlimit' ,color='gray')
+
+    plt.axvline(np.log10(4.43),color='gray', linestyle='-', linewidth=2)
+    plt.text(np.log10(4.43)-0.05, 0.15, 'WSU Limit\n4.43\nGB/s',color='gray',horizontalalignment='right')
+
+    plt.grid(which='both',axis='both',linestyle=':')
+    
+    plt.xlabel('Data rate (GB/s)')
+    plt.ylabel('Fraction of Time at Higher Data Rates')
+    
+    locs, labels = plt.xticks()
+
+    newlabels = ['10$^{{ {:2.0f} }}$'.format(val) for val in locs]
+    plt.xticks(locs[1:],newlabels[1:])
+
+    
+    plt.title(plot_title)
+    plt.legend(loc='lower left')
+    
+    if figname:
+        plt.savefig(figname, dpi=600)
+
+
          
 def plot_datarate_result_hist(mydb,
                               bin_min=-1,
@@ -2853,6 +3123,94 @@ def plot_soc_result_cumulative(mydb,
         plt.savefig(pltname)
 
 
+def plot_soc_result_cumulative_sdd(mydb,
+                                   label='allgrid',
+                                   plot_title="System Performance",
+                                   band1_band2_estimate=None,
+                                   pltname=None):
+    
+    '''
+    Purpose: create cumulative histograms showing size of compute
+
+    Inputs: mydb with weights, data rates, and system performance
+
+    Output:
+        if pltname
+                plot showing fraction at each data rate
+
+
+    Date        Programmer      Description of Changes
+    --------------------------------------------------
+    4/20/2023   A.A. Kepley     Original Code
+    8/21/2024   A.A. Kepley     add initial and goal WSU
+    4/16/2025   A.A. Kepley     Update for SDD
+    
+    '''
+
+    mybins = 500
+
+    plt.hist(np.log10(mydb['blc_sysperf_typical'+'_'+label]), cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             weights=mydb['weights_all'],
+             color=mycolors['blc'],
+             linewidth=2,
+             label='BLC/ACA (unmitigated)')
+
+
+    
+    plt.hist(np.log10(mydb['wsu_sysperf_goal_stepped2_typical'+'_'+label]), cumulative=-1, histtype='step',
+             bins=mybins,
+             log=True,
+             density=True,
+             weights=mydb['weights_all'],
+             color = mycolors['goal'],
+             linewidth=2,
+             label='Milestone 5')
+
+    if band1_band2_estimate:
+        plt.fill_between(band1_band2_estimate['wsu_sysperf_goal_stepped2_typical'+'_'+label]['bins'][1:],
+                         band1_band2_estimate['wsu_sysperf_goal_stepped2_typical'+'_'+label]['min'],
+                         y2=band1_band2_estimate['wsu_sysperf_goal_stepped2_typical'+'_'+label]['max'],
+                         step='pre',
+                         color=mycolors['goal'],
+                             alpha=0.4)
+        plt.stairs(band1_band2_estimate['wsu_sysperf_goal_stepped2_typical'+'_'+label]['median'],
+                   band1_band2_estimate['wsu_sysperf_goal_stepped2_typical'+'_'+label]['bins'],
+                   label='w/ Bands 1 & 2',
+                   color=mycolors['goal'],
+                   linewidth=2,
+                   linestyle=':')
+
+
+    plt.axhline(0.1,color='gray',linestyle=':')
+    plt.text(-4,0.1,'10% larger')
+
+    plt.axhline(0.05,color='gray',linestyle=':')
+    plt.text(-4,0.05,'5% larger')
+
+    plt.axhline(0.01,color='gray',linestyle=':')
+    plt.text(-4,0.01,'1% larger')
+
+    plt.grid(which='both',axis='both',linestyle=':')
+    
+    plt.xlabel('System Performance (PFLOP/s)')
+    plt.ylabel('Fraction of Time with Higher System Performances')
+
+    plt.title(plot_title)
+    plt.legend(loc='lower left')
+
+    locs, labels = plt.xticks()
+
+    newlabels = ['10$^{{ {:2.0f} }}$'.format(val) for val in locs]
+    plt.xticks(locs[1:],newlabels[1:])
+
+    
+    if pltname:
+        plt.savefig(pltname)
+
+        
 
 def productsize_comparison_hist_plot(mydb,
                                 stage='early',

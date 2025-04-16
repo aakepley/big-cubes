@@ -4380,4 +4380,44 @@ def add_initial_wsu_properties(input_db):
     return new_db
 
 
+def calc_sysperf_average_over_subset(mydb,
+                                     stage='goal',
+                                     percentile=90):
+    '''
+    Calculate average required system performance over a percentile subset
 
+    Input:
+
+    mydb: database
+    stage: WSU stage
+    percentile: what percentile to choose
+
+    Output:
+    Average required system performance for 12m and 7m separately.
+    
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------
+    4/15/2025   A.A. Kepley     Original Code
+    '''
+
+    quant_name = 'wsu_sysperf_'+stage+'_stepped2_typical_aprojonly'
+
+    idx = mydb['array'] == '12m'
+    mydb_12m = mydb[idx]
+
+    dbmax = np.max(mydb_12m[quant_name])
+    percentile_value = np.percentile(mydb_12m[quant_name],percentile)
+
+    idx_dog = mydb_12m[quant_name] <= percentile_value
+
+    sub_avg = np.average(mydb_12m[idx_dog][quant_name] ,weights=mydb_12m[idx_dog]['weights_all'])
+
+    print("Max: ", dbmax,  " PFLOP/s")
+    print("Percentile: ", percentile )
+    print("Percentile Value: ", percentile_value, " PFLOP/s")
+    print("12m average over percentile: ", sub_avg, " PFLOPS/s") # I believe this is PFLOP/s, but need to check
+    
+
+        
+
+        
