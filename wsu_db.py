@@ -1956,22 +1956,23 @@ def make_wsu_stats_table_newstats_datarate(mystats,fileout='test.tex', add_initi
     fout = open(fileout,'w')
 
     if add_initial_goal:
-        stage_list = ['initial','early','goal','later_4x']
+        stage_list = ['initial','ms4','goal']
         tablehead = '''\definecolor{myband}{RGB}{255,235,205}
 \definecolor{myinitial}{RGB}{181,110,110}
-\definecolor{mygoal}{RGB}{152,168,214}
+\definecolor{myms4}{RGB}{115, 112, 138}
+ \definecolor{mygoal}{RGB}{152,168,214}
 \definecolor{my2x}{RGB}{115, 112, 138}
 \definecolor{my4x}{RGB}{251, 206, 177}
         
 \\begin{sidewaystable}
 \centering
 \caption{Overview of Data Rate Properties for  WSU \label{tab:overview_datarates}}
-\\begin{tblr}{colspec={|[2pt]Q[l]|Q[l]|[1pt]c|c|c|c|c|c|c|c|c|c|c|c|[2pt]},
+\\begin{tblr}{colspec={|[2pt]Q[l]|Q[l]|[1pt]c|c|c|c|c|c|c|c|c|[2pt]},
 width=\\textwidth,
 cells = {font=\scriptsize}}
 \\hline[2pt]
-\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c,bg=myinitial} IWS & & & \SetCell[c=3]{c,bg=my2x} MWS  & & & \SetCell[c=3]{c,bg=mygoal} GWS & & & \SetCell[c=3]{c,bg=my4x} FWS & &   \\\\ \hline[1pt]
-& & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both \\\\ \hline[1pt]
+\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c,bg=myinitial} Milestone 1 & & & \SetCell[c=3]{c,bg=myms4} Milestone 4 & & & \SetCell[c=3]{c,bg=mygoal} Milestone 5 & & & \\\\ \hline[1pt]
+& & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both  \\\\ \hline[1pt]
 '''
     else:
         stage_list = ['early','later_4x']
@@ -2086,9 +2087,10 @@ def make_wsu_stats_table_newstats_datavol(mystats,fileout='test2.tex',add_initia
     fout = open(fileout,'w')
 
     if add_initial_goal:
-        stage_list = ['initial','early','goal','later_4x']
+        stage_list = ['initial','ms4','goal']
         tablehead = '''\definecolor{myband}{RGB}{255,235,205}
 \definecolor{myinitial}{RGB}{181,110,110}
+\definecolor{myms4}{RGB}{115, 112, 138}
 \definecolor{mygoal}{RGB}{152,168,214}
 \definecolor{my2x}{RGB}{115, 112, 138}
 \definecolor{my4x}{RGB}{251, 206, 177}
@@ -2096,12 +2098,12 @@ def make_wsu_stats_table_newstats_datavol(mystats,fileout='test2.tex',add_initia
 \\begin{sidewaystable}
 \centering
 \caption{Overview of Data Volume Properties for WSU \label{tab:overview_datavol}}
-\\begin{tblr}{colspec={|[2pt]Q[l]|Q[l]|[1pt]c|c|c|c|c|c|c|c|c|c|c|c|[2pt]},
+\\begin{tblr}{colspec={|[2pt]Q[l]|Q[l]|[1pt]c|c|c|c|c|c|c|c|c|[2pt]},
 width=\\textwidth,
 cells = {font=\scriptsize}}
 \\hline[2pt]
-\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c,bg=myinitial} IWS & & & \SetCell[c=3]{c,bg=my2x} MWS  & & & \SetCell[c=3]{c,bg=mygoal} GWS & & & \SetCell[c=3]{c,bg=my4x} FWS & &   \\\\ \hline[1pt]
-& & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both \\\\ \hline[1pt]
+\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c,bg=myinitial} Milestone 1 & & & \SetCell[c=3]{c,bg=myms4} Milestone 4  & & & \SetCell[c=3]{c,bg=mygoal} GWS & & &  \\\\ \hline[1pt]
+& & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both  \\\\ \hline[1pt]
 '''        
     else:
         stage_list = ['early','later_4x']
@@ -2225,9 +2227,10 @@ def make_wsu_stats_table_newstats_sysperf(mystats, add_initial_goal=False,
     fout = open(fileout,'w')
 
     if add_initial_goal:
-        stage_list = ['initial','early','goal','later_4x']
+        stage_list = ['initial','ms4','goal']
         tablehead = '''\definecolor{myband}{RGB}{255,235,205}
 \definecolor{myinitial}{RGB}{181,110,110}
+ \definecolor{myms4}{RGB}{115, 112, 138}
 \definecolor{mygoal}{RGB}{152,168,214}
 \definecolor{my2x}{RGB}{115, 112, 138}
 \definecolor{my4x}{RGB}{251, 206, 177}
@@ -2235,12 +2238,12 @@ def make_wsu_stats_table_newstats_sysperf(mystats, add_initial_goal=False,
 \\begin{sidewaystable}
 \centering
 \caption{Overview of System Performance Related Quantities for  WSU \label{tab:overview_sysperf}}
-\\begin{tblr}{colspec={|[2pt]Q[l]|Q[l]|[1pt]c|c|c|c|c|c|c|c|c|c|c|c|[2pt]},
+\\begin{tblr}{colspec={|[2pt]Q[l]|Q[l]|[1pt]c|c|c|c|c|c|c|c|c|[2pt]},
 width=\\textwidth,
 cells = {font=\scriptsize}}
 \\hline[2pt]
-\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c,bg=myinitial} IWS & & & \SetCell[c=3]{c,bg=my2x} MWS  & & & \SetCell[c=3]{c,bg=mygoal} GWS & & & \SetCell[c=3]{c,bg=my4x} FWS & &   \\\\ \hline[1pt]
-& & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both \\\\ \hline[1pt]
+\SetCell[c=2,r=2]{c} & & \SetCell[c=3]{c,bg=myinitial} Milestone 1 & & & \SetCell[c=3]{c,bg=myms4} Milestone 4  & & & \SetCell[c=3]{c,bg=mygoal} Milestone 5 & & &   \\\\ \hline[1pt]
+& & 12m & 7m & both & 12m & 7m & both & 12m & 7m & both \\\\ \hline[1pt]
 '''
 
     else:
@@ -3012,7 +3015,8 @@ def remove_projects(mydb, array='12m', time_frac=0.05):
 
 def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr,
               add_initial=False,
-              add_goal=False):
+              add_goal=False,
+              add_ms4=False):
     '''
     Purpose: Add band1 and band2 information into data base by
     scaling from band 3.
@@ -3030,6 +3034,8 @@ def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr,
     8/23/2024  A.A. Kepley      Added initial and goal stages
     '''
 
+    from large_cubes import calc_cube_size
+    
     # fiducial band 1 and 2 frequencies
     band1_freq = 39.0 * u.GHz
     band2_freq = 75.0 * u.GHz
@@ -3073,6 +3079,8 @@ def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr,
                 if add_initial:
                     new_info['wsu_bandwidth_initial'] = 8.0*u.GHz ## added based on AMT memo
                 new_info['wsu_bandwidth_early'] = 8.0*u.GHz ## originally had this as 16.0GHz, but based on data rate ramp up, needs to be 8GHz for early.
+                if add_ms4:
+                    new_info['wsu_bandwidth_ms4'] = 8.0*u.GHz ## added based on AMT memo
                 if add_goal:
                     new_info['wsu_bandwidth_goal'] = 8.0*u.GHz ## added based on AMT memo
                 new_info['wsu_bandwidth_later_2x'] = 16.0*u.GHz
@@ -3083,8 +3091,10 @@ def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr,
                 if add_initial:
                     new_info['wsu_bandwidth_initial'] = 16.0*u.GHz ## added based on AMT memo
                 new_info['wsu_bandwidth_early'] = 16.0*u.GHz
+                if add_ms4:
+                    new_info['wsu_bandwidth_ms4'] = 16.0*u.GHz ## added based on AMT memo                    
                 if add_goal:
-                    new_info['wsu_bandwidth_goal'] = 16.0*u.GHz ## added based on AMT memo
+                    new_info['wsu_bandwidth_goal'] = 32.0*u.GHz ## added based on AMT memo                    
                 new_info['wsu_bandwidth_later_2x'] = 16.0*u.GHz
                 new_info['wsu_bandwidth_later_4x'] = 32.0*u.GHz ## Can get 32GHz.
 
@@ -3115,11 +3125,13 @@ def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr,
 
     # calculating the number of spectral windows this way allows me to easily propagate any spw related changes.    
     if add_initial:
-        db_update['wsu_nspw_initial'] = np.ceil(db_update['wsu_bandwidth_initial'] / db_update['wsu_bandwidth_spw']).value
+        db_update['wsu_nspw_initial'] = np.ceil(db_update['wsu_bandwidth_initial'] / db_update['wsu_bandwidth_spw']).value * u.Unit('')
     db_update['wsu_nspw_early'] = np.round(db_update['wsu_bandwidth_early']/db_update['wsu_bandwidth_spw']).value
     db_update['wsu_nspw_later_2x'] = np.round(db_update['wsu_bandwidth_later_2x']/db_update['wsu_bandwidth_spw']).value
+    if add_ms4:
+        db_update['wsu_nspw_ms4'] = np.round(db_update['wsu_bandwidth_ms4'] / db_update['wsu_bandwidth_spw']).value * u.Unit('')
     if add_goal:
-        db_update['wsu_nspw_goal'] = np.round(db_update['wsu_bandwidth_goal'] / db_update['wsu_bandwidth_spw']).value
+        db_update['wsu_nspw_goal'] = np.round(db_update['wsu_bandwidth_goal'] / db_update['wsu_bandwidth_spw']).value * u.Unit('')
     db_update['wsu_nspw_later_4x'] = np.round(db_update['wsu_bandwidth_later_4x']/db_update['wsu_bandwidth_spw']).value
     
     #calculating new specwidth, velres, and chanavg. for early, later_2x, and later_4x
@@ -3154,7 +3166,7 @@ def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr,
     if add_initial:
         # fix up channels for initial restrictions
         db_update['wsu_chanavg_stepped2_initial'] = db_update['wsu_chanavg_stepped2']
-        for band in band_list:
+        for band in [1,2,3,4,5,6,7,8,9,10]:
             idx = (db_update['band'] == band)  & (db_update['wsu_chanavg_stepped2_initial'] < wsu_chanavg_min_initial[band])
             db_update['wsu_chanavg_stepped2_initial'][idx] = wsu_chanavg_min_initial[band]
             
@@ -3162,7 +3174,11 @@ def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr,
             db_update['wsu_velres_stepped2_initial'] = (db_update['wsu_specwidth_stepped2_initial'] / db_update['wsu_freq'].to('kHz')) * const.c.to('km/s')
             db_update['wsu_nchan_spw_stepped2_initial'] = np.floor(db_update['wsu_bandwidth_spw'].to('kHz') / db_update['wsu_specwidth_stepped2_initial'])
             db_update['wsu_nchan_agg_stepped2_initial'] = db_update['wsu_nchan_spw_stepped2_initial'] * db_update['wsu_nspw_initial']
-        
+
+    # calculate ms4 aggegrate channels (stepped2 only).
+    if add_ms4:
+        db_update['wsu_nchan_agg_stepped2_ms4'] = db_update['wsu_nchan_spw_stepped2'] * db_update['wsu_nspw_ms4']
+            
     # calculate goal aggegrate channels (stepped2 only).
     if add_goal:
         db_update['wsu_nchan_agg_stepped2_goal'] = db_update['wsu_nchan_spw_stepped2'] * db_update['wsu_nspw_goal']
@@ -3170,11 +3186,16 @@ def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr,
 
     # calculating fractional bandwidth
     if add_initial:
-        db_update['wsu_frac_bw_initial'] = db_update['wsu_bandwidth_initial'] / new_db['wsu_freq']
+        db_update['wsu_frac_bw_initial'] = db_update['wsu_bandwidth_initial'] / db_update['wsu_freq']
     db_update['wsu_frac_bw_early'] = db_update['wsu_bandwidth_early']/db_update['wsu_freq']
     db_update['wsu_frac_bw_later_2x'] = db_update['wsu_bandwidth_later_2x']/db_update['wsu_freq']
+
+    if add_ms4:
+        db_update['wsu_frac_bw_ms4'] = db_update['wsu_bandwidth_ms4'] / db_update['wsu_freq']
+
     if add_goal:
         db_update['wsu_frac_bw_goal'] = db_update['wsu_bandwidth_goal'] / db_update['wsu_freq']
+        
     db_update['wsu_frac_bw_later_4x'] = db_update['wsu_bandwidth_later_4x']/db_update['wsu_freq']
     db_update['wsu_frac_bw_spw'] = db_update['wsu_bandwidth_spw']/db_update['wsu_freq']
     
@@ -3194,8 +3215,18 @@ def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr,
         # calculate the product size
         # 2.0 * (aggregate cube size + number of mfs images * size of mfs image)
         agg_cube = calc_cube_size(db_update['imsize'],db_update['wsu_nchan_agg_stepped2_initial'])
-        db_update['wsu_productsize_initial_stepped2'] = 2.0 * ( agg_cube + db_update['mfssize'] * db_update['wsu_nspw_initial'])
+        db_update['wsu_productsize_initial_stepped2'] = 2.0 * ( agg_cube + db_update['mfssize'] * db_update['wsu_nspw_initial']) * db_update['ntarget']
 
+    if add_ms4:
+        # calculate data rates, visibility rates,  data volumes, and number of visibilities
+        calc_rates_for_db(db_update,array='typical',correlator='wsu', stage='ms4', velres='stepped2',agg=True, permous=True)
+        
+        # calculate the product size
+        # 2.0 * (aggregate cube size + number of mfs images * size of mfs image)
+        agg_cube = calc_cube_size(db_update['imsize'],db_update['wsu_nchan_agg_stepped2_ms4'])
+        db_update['wsu_productsize_ms4_stepped2'] = 2.0 * ( agg_cube + db_update['mfssize'] * db_update['wsu_nspw_ms4']) * db_update['ntarget']
+
+        
     if add_goal:
         # calculate data rates, visibility rates,  data volumes, and number of visibilities
         calc_rates_for_db(db_update,array='typical',correlator='wsu', stage='goal', velres='stepped2',agg=True, permous=True)
@@ -3203,7 +3234,7 @@ def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr,
         # calculate the product size
         # 2.0 * (aggregate cube size + number of mfs images * size of mfs image)
         agg_cube = calc_cube_size(db_update['imsize'],db_update['wsu_nchan_agg_stepped2_goal'])
-        db_update['wsu_productsize_goal_stepped2'] = 2.0 * ( agg_cube + db_update['mfssize'] * db_update['wsu_nspw_goal'])
+        db_update['wsu_productsize_goal_stepped2'] = 2.0 * ( agg_cube + db_update['mfssize'] * db_update['wsu_nspw_goal']) * db_update['ntarget']
         
     
 
@@ -3227,6 +3258,15 @@ def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr,
                      wproject=False,
                      visrate_list = ['wsu_visrate_initial_stepped2_initial'])
 
+
+    if add_ms4:
+        calc_sysperf(db_update,
+                     label='aprojonly',
+                     mosaic_aproject=True,
+                     wproject=False,
+                     visrate_list = ['wsu_visrate_ms4_stepped2_typical'])
+
+        
     if add_goal:
         calc_sysperf(db_update,
                      label='aprojonly',
@@ -3252,7 +3292,8 @@ def add_bands(mydb, array='12m', band=1.0, total_time=260*u.hr,
     
 
 def generate_db_realizations(mydb, outDir='data/sample_band1_band2',filename='test',
-                             frac_12m=0.1, frac_7m=0.06, n=3):
+                             frac_12m=0.1, frac_7m=0.06, n=3,
+                             add_initial=False,add_goal=False,add_ms4=False):
     '''
     generate realizations of data base so I can calculate statistics
 
@@ -3291,12 +3332,20 @@ def generate_db_realizations(mydb, outDir='data/sample_band1_band2',filename='te
         (new_db_12m_7m,time_7m) = remove_projects(new_db_12m,array='7m',time_frac=0.06)
 
         
-        db_update_band1_12m = add_bands(new_db_12m_7m, array='12m', band=1.0,total_time=time_12m.to('hr')/2.0)        
-        db_update_band2_12m = add_bands(new_db_12m_7m, array='12m', band=2.0,total_time=time_12m.to('hr')/2.0)
+        db_update_band1_12m = add_bands(new_db_12m_7m, array='12m', band=1.0,total_time=time_12m.to('hr')/2.0, add_initial=add_initial, add_goal=add_goal, add_ms4=add_ms4)    
+        db_update_band2_12m = add_bands(new_db_12m_7m, array='12m', band=2.0,total_time=time_12m.to('hr')/2.0, add_initial=add_initial, add_goal=add_goal, add_ms4=add_ms4)
+        
+        db_update_band1_7m = add_bands(new_db_12m_7m, array='7m', band=1.0,total_time=time_7m.to('hr')/2.0, add_initial=add_initial, add_goal=add_goal, add_ms4=add_ms4)     
+        db_update_band2_7m = add_bands(new_db_12m_7m, array='7m', band=2.0,total_time=time_7m.to('hr')/2.0, add_initial=add_initial, add_goal=add_goal, add_ms4=add_ms4)
 
-        db_update_band1_7m = add_bands(new_db_12m_7m, array='7m', band=1.0,total_time=time_7m.to('hr')/2.0)
-        db_update_band2_7m = add_bands(new_db_12m_7m, array='7m', band=2.0,total_time=time_7m.to('hr')/2.0)
 
+        #for mykey in new_db_12m_7m.keys():
+        #    if mykey in db_update_band1_12m.keys():
+        #        if (new_db_12m_7m[mykey].unit != db_update_band1_12m[mykey].unit):
+        #            print(mykey)
+        
+        #ipdb.set_trace()
+        
         wsu_all_band1_band2 = vstack([new_db_12m_7m, db_update_band1_12m, db_update_band2_12m, db_update_band1_7m, db_update_band2_7m])
 
         # update the data weights.
@@ -4198,7 +4247,9 @@ def create_initial_wsu_db(wsu_all):
     # copy to new table to avoid corrupting original data
     new_db = wsu_all.copy()
 
-    ## INITIAL
+    ## ------- ##
+    ## INITIAL ##
+    ## ------- ##
     
     # fix up array based quantities (number of antennas and integration time)
     new_db.add_column(0.0, name='nant_initial')
@@ -4207,7 +4258,8 @@ def create_initial_wsu_db(wsu_all):
     
     idx = new_db['array'] == '12m'    
     #new_db['nant_initial'][idx] = 36
-    new_db['nant_initial'][idx] = 43 #changed to 43 per instructions from John C.
+    #new_db['nant_initial'][idx] = 43 #changed to 43 per instructions from John C.
+    new_db['nant_initial'][idx] = 47 # changed to 47 per instructions from Alvaro
     new_db['wsu_tint_initial'][idx] = 6.144 * u.s
 
 
@@ -4256,7 +4308,42 @@ def create_initial_wsu_db(wsu_all):
 
     new_db['wsu_frac_bw_initial'] = new_db['wsu_bandwidth_initial'] / new_db['wsu_freq']
 
-    ## GOAL
+
+    ## ---- ##
+    ## MS4  ##
+    ## ---- ##
+
+    # fix up bandwidth
+    new_db.add_column(0.0*u.GHz, name='wsu_bandwidth_ms4')
+    for band in band_list:
+        idx = new_db['band'] == band
+        if band == 3:
+            new_db['wsu_bandwidth_ms4'][idx] = 16.0 * u.GHz
+        elif band == 6:
+            new_db['wsu_bandwidth_ms4'][idx] = 11.0 * u.GHz
+        elif (band >= 4) & (band <=8):
+            new_db['wsu_bandwidth_ms4'][idx] = 8.0 * u.GHz
+        elif (band >=9) & (band <= 10):
+            new_db['wsu_bandwidth_ms4'][idx] = 16.0 * u.GHz
+        else:
+            print('band not recognized') 
+    
+    # fix up nspws:
+    new_db['wsu_nspw_ms4'] = new_db['wsu_bandwidth_ms4'] / new_db['wsu_bandwidth_spw']
+
+                      
+    new_db['wsu_nchan_agg_stepped2_ms4'] = new_db['wsu_nchan_spw_stepped2'] * new_db['wsu_nspw_ms4']
+    # alternative
+    #new_db['wsu_nchan_agg_stepped2_initial'] = new_db['wsu_bandwidth_initial'].to('kHz') / new_db['wsu_specwdith_stepped2_initial']
+
+    # fix up fraction bandwidth
+    new_db['wsu_frac_bw_ms4'] = new_db['wsu_bandwidth_ms4'] / new_db['wsu_freq']
+
+    
+    
+    ## ---- ##
+    ## GOAL ##
+    ## ---- ##
 
     # fix up bandwidth
     new_db.add_column(0.0*u.GHz, name='wsu_bandwidth_goal')
@@ -4321,6 +4408,9 @@ def add_initial_wsu_properties(input_db):
 
     - calculate wsu_sysperf_initial_stepped2_initial_aprojonly
 
+    ## TODO:
+    ### ADD MILESTONE 2 and 4 properties.
+
     
 
     Date        Programmer      Description of Changes
@@ -4347,7 +4437,7 @@ def add_initial_wsu_properties(input_db):
     # 2.0 * (aggregate cube size + number of mfs images * size of mfs image)
     agg_cube = calc_cube_size(new_db['imsize'],new_db['wsu_nchan_agg_stepped2_initial'])
     #new_db['wsu_productsize_initial_stepped2'] = 2.0 * ( agg_cube + new_db['mfssize'] * new_db['wsu_nspw_initial']) ## TODO: needs to include ntarget??
-    new_db['wsu_productsize_initial_stepped2'] = 2.0 * new_db['ntarget'] * ( agg_cube + new_db['mfssize'] * new_db['wsu_nspw_initial']) ## TODO: needs to include ntarget??
+    new_db['wsu_productsize_initial_stepped2'] = 2.0 * new_db['ntarget'] * ( agg_cube + new_db['mfssize'] * new_db['wsu_nspw_initial']) ## NEEDS TO INCLUDE NTARGET
 
     # calculate the required system performance
     calc_sysperf(new_db,
@@ -4357,6 +4447,26 @@ def add_initial_wsu_properties(input_db):
                  visrate_list = ['wsu_visrate_initial_stepped2_initial'])
 
 
+    ## MS4
+    # calculate data rates, visibility rates,  data volumes, and number of visibilities
+    calc_rates_for_db(new_db,array='typical',correlator='wsu', stage='ms4', velres='stepped2',agg=True, permous=True)
+
+    # calculate the product size
+    # 2.0 * (aggregate cube size + number of mfs images * size of mfs image)
+    agg_cube = calc_cube_size(new_db['imsize'],new_db['wsu_nchan_agg_stepped2_ms4'])
+
+    #new_db['wsu_productsize_goal_stepped2'] = 2.0 * ( agg_cube + new_db['mfssize'] * new_db['wsu_nspw_goal']) ## TODO: needs to include ntarget?
+    new_db['wsu_productsize_ms4_stepped2'] = 2.0 * new_db['ntarget'] * ( agg_cube + new_db['mfssize'] * new_db['wsu_nspw_ms4']) ##  NEEDS TO INCLUDE NTARGET
+
+    # calculate the required system performance
+    calc_sysperf(new_db,
+                 label='aprojonly',
+                 mosaic_aproject=True,
+                 wproject=False,
+                 visrate_list = ['wsu_visrate_ms4_stepped2_typical'])
+
+    
+    
 
     # GOAL
     # calculate data rates, visibility rates,  data volumes, and number of visibilities
@@ -4367,7 +4477,7 @@ def add_initial_wsu_properties(input_db):
     agg_cube = calc_cube_size(new_db['imsize'],new_db['wsu_nchan_agg_stepped2_goal'])
 
     #new_db['wsu_productsize_goal_stepped2'] = 2.0 * ( agg_cube + new_db['mfssize'] * new_db['wsu_nspw_goal']) ## TODO: needs to include ntarget?
-    new_db['wsu_productsize_goal_stepped2'] = 2.0 * new_db['ntarget'] * ( agg_cube + new_db['mfssize'] * new_db['wsu_nspw_goal']) ## TODO: needs to include ntarget?
+    new_db['wsu_productsize_goal_stepped2'] = 2.0 * new_db['ntarget'] * ( agg_cube + new_db['mfssize'] * new_db['wsu_nspw_goal']) ## NEED TO INCLUDE NTARGET
 
     # calculate the required system performance
     calc_sysperf(new_db,
