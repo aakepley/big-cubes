@@ -1864,7 +1864,7 @@ def plot_productsize_comparison_sdd(mydb,
              color=mycolors['blc'],
              linestyle=':',
              linewidth=2,
-             label="BLC/ACA (mitigated)")
+             label="Pre-WSU (mitigated)")
 
     plt.hist(np.log10(mydb['initialprodsize'].to('TB').value.filled(np.nan)), cumulative=-1, histtype='step',
              bins=mybins,
@@ -1874,7 +1874,7 @@ def plot_productsize_comparison_sdd(mydb,
              color=mycolors['blc'],
              linestyle='-',
              linewidth=2,
-             label="BLC/ACA (unmitigated)")
+             label="Pre-WSU (unmitigated)")
 
     plt.hist(np.log10(mydb['wsu_productsize_goal_stepped2'].to('TB').value), cumulative=-1, histtype='step',
              bins=mybins,
@@ -1895,12 +1895,12 @@ def plot_productsize_comparison_sdd(mydb,
                          step='pre',
                          color=mycolors['goal'],                         
                          alpha=0.4)
-        plt.stairs(band1_band2_estimate['wsu_productsize_goal_stepped2']['median'],
-                   band1_band2_estimate['wsu_productsize_goal_stepped2']['bins'],
-                   label='w/ Bands 1 & 2',
-                   color=mycolors['goal'],
-                   linewidth=2,                   
-                   linestyle=':')
+        #plt.stairs(band1_band2_estimate['wsu_productsize_goal_stepped2']['median'],
+        #           band1_band2_estimate['wsu_productsize_goal_stepped2']['bins'],
+        #           label='w/ Bands 1 & 2',
+        #           color=mycolors['goal'],
+        #           linewidth=2,                   
+        #           linestyle=':')
     
     plt.axvline(np.log10(maxproductsize), color='black', linestyle=':')
     plt.text(np.log10(maxproductsize)+0.1,0.65,'Current product size limit\n(500GB)',horizontalalignment='left')
@@ -2162,7 +2162,7 @@ def plot_datavol_comparison_sdd(mydb,
              weights=mydb['weights_all'],
              color=mycolors['blc'],
              linewidth=2,
-             label="BLC/ACA")
+             label="Pre-WSU")
 
 
     plt.hist(np.log10(mydb['wsu_datavol_goal_stepped2_typical_'+datatype].to('TB').value), cumulative=-1,histtype='step',
@@ -2183,12 +2183,12 @@ def plot_datavol_comparison_sdd(mydb,
                          step='pre',
                          color=mycolors['goal'],
                          alpha=0.4)
-        plt.stairs(band1_band2_estimate['wsu_datavol_goal_stepped2_typical_'+datatype]['median'],
-                   band1_band2_estimate['wsu_datavol_goal_stepped2_typical_'+datatype]['bins'] ,
-                   label='w/ Bands 1 & 2',
-                   color=mycolors['goal'],
-                   linewidth=2,
-                   linestyle=':')
+        #plt.stairs(band1_band2_estimate['wsu_datavol_goal_stepped2_typical_'+datatype]['median'],
+        #           band1_band2_estimate['wsu_datavol_goal_stepped2_typical_'+datatype]['bins'] ,
+        #           label='w/ Bands 1 & 2',
+        #           color=mycolors['goal'],
+        #           linewidth=2,
+        #           linestyle=':')
                     
     plt.axhline(0.1,color='gray',linestyle=':')
     plt.text(-3,0.1,'10% larger')
@@ -2572,7 +2572,7 @@ def plot_datarate_comparison_sdd(mydb,
              color=mycolors['blc'],
              weights=mydb['weights_all'],
              linewidth=2,
-             label="BLC/ACA")
+             label="Pre-WSU")
 
 
     plt.hist(np.log10(mydb['wsu_datarate_goal_stepped2_typical'].value), cumulative=-1,histtype='step',
@@ -2592,12 +2592,12 @@ def plot_datarate_comparison_sdd(mydb,
                          step='pre',
                          color=mycolors['goal'],                         
                          alpha=0.4)
-        plt.stairs(band1_band2_estimate['wsu_datarate_goal_stepped2_typical']['median'],
-                   band1_band2_estimate['wsu_datarate_goal_stepped2_typical']['bins'],
-                   label='w/ Bands 1 & 2',
-                   color=mycolors['goal'],
-                   linewidth=2,                   
-                   linestyle=':') 
+        #plt.stairs(band1_band2_estimate['wsu_datarate_goal_stepped2_typical']['median'],
+        #           band1_band2_estimate['wsu_datarate_goal_stepped2_typical']['bins'],
+        #           label='w/ Bands 1 & 2',
+        #           color=mycolors['goal'],
+        #           linewidth=2,                   
+        #           linestyle=':') 
         
         
     plt.axhline(0.1,color='gray',linestyle=':')
@@ -3156,7 +3156,7 @@ def plot_soc_result_cumulative_sdd(mydb,
              weights=mydb['weights_all'],
              color=mycolors['blc'],
              linewidth=2,
-             label='BLC/ACA (unmitigated)')
+             label='Pre-WSU (unmitigated)')
 
 
     
@@ -3176,12 +3176,12 @@ def plot_soc_result_cumulative_sdd(mydb,
                          step='pre',
                          color=mycolors['goal'],
                              alpha=0.4)
-        plt.stairs(band1_band2_estimate['wsu_sysperf_goal_stepped2_typical'+'_'+label]['median'],
-                   band1_band2_estimate['wsu_sysperf_goal_stepped2_typical'+'_'+label]['bins'],
-                   label='w/ Bands 1 & 2',
-                   color=mycolors['goal'],
-                   linewidth=2,
-                   linestyle=':')
+        #plt.stairs(band1_band2_estimate['wsu_sysperf_goal_stepped2_typical'+'_'+label]['median'],
+        #           band1_band2_estimate['wsu_sysperf_goal_stepped2_typical'+'_'+label]['bins'],
+        #           label='w/ Bands 1 & 2',
+        #           color=mycolors['goal'],
+        #           linewidth=2,
+        #           linestyle=':')
 
 
     plt.axhline(0.1,color='gray',linestyle=':')
